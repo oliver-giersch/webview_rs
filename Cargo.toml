@@ -1,0 +1,12 @@
+[package]
+name = "webview_rs"
+version = "0.1.0"
+authors = ["oliver <oliver.giersch@googlemail.com>"]
+license = "MIT/Apache-2.0"
+readme = "README.md"
+description = "Rust wrapper for webview C library"
+keywords = ["webview", "gui"]
+
+[dependencies]
+bitflags = "*"
+webview_ffi = { path = "webview_ffi", version = "*" }

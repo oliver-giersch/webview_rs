@@ -1,0 +1,338 @@
+#![feature(crate_in_paths)]
+
+#[macro_use]
+extern crate bitflags;
+extern crate webview_ffi;
+
+use std::cell::UnsafeCell;
+use std::mem;
+use std::ops::Deref;
+use std::sync::Arc;
+
+pub use userdata::Userdata;
+
+use crate::error::WebviewError;
+use crate::ffi::LoopResult;
+use webview_ffi::webview;
+
+mod builder;
+mod callback;
+mod error;
+mod ffi;
+mod userdata;
+
+type ExternalInvokeClosure<T, E> = FnMut(&Webview<T, E>, &str);
+type DispatchClosure<T, E> = FnMut(&Webview<T, E>);
+type DispatchClosureThreadSafe<T, E> = FnMut(&Webview<T, E>) + Send;
+
+/*pub fn webview<C>(title: &str, content: Content<C>, width: usize, height: usize, resizable: bool)
+where
+    C: AsRef<str>
+{
+    unimplemented!()
+}*/
+
+/// # Thread Safety
+///
+/// The Webview struct is not thread-safe:
+///
+/// unsafe impl<T, E> !Send for Webview<T, E>
+/// unsafe impl<T, E> !Sync for Webview<T, E>
+///
+/// To create a thread-safe handle for a Webview, call the consuming function
+/// `webview_rs::Webview::dispatch_handles`.
+/// This function creates two handles, one for the main thread which can be used exactly like
+/// a normal Webview struct, and one which can be sent to another thread.
+///
+/// This `ThreadHandle` can be cloned and is only able to call dispatch closures, which are called
+/// in a thread-safe way.
+pub struct Webview<T, E> {
+    inner: UnsafeCell<WebviewInner<T, E>>,
+}
+
+impl<T, E> From<WebviewInner<T, E>> for Webview<T, E> {
+    #[inline]
+    fn from(inner: WebviewInner<T, E>) -> Self {
+        Self {
+            inner: UnsafeCell::new(inner)
+        }
+    }
+}
+
+#[repr(C)]
+struct WebviewInner<T, E>{
+    webview: webview,
+    userdata: Option<T>,
+    external_invoke: Option<E>,
+    eval_buffer: String,
+}
+
+impl<T, E> Webview<T, E>
+where
+    T: Userdata,
+    E: FnMut(&Webview<T, E>, &str)
+{
+    fn new(
+        webview: webview,
+        userdata: Option<T>,
+        external_invoke: Option<E>,
+        buffer_size: usize
+    ) -> Self {
+        Self {
+            inner: UnsafeCell::new(WebviewInner {
+                webview,
+                userdata,
+                external_invoke,
+                eval_buffer: String::with_capacity(buffer_size),
+            })
+        }
+    }
+
+    pub fn run(&self) {
+        loop {
+            unsafe {
+                if let LoopResult::Exit = ffi::webview_loop(self.inner_webview(), true) { //TODO: customize blocking
+                    break;
+                }
+            }
+        }
+    }
+
+    #[inline]
+    pub fn run_with_init(&self, init: impl FnOnce()) {
+        init();
+
+        self.run();
+    }
+
+    #[inline]
+    pub fn eval(&self, js: &str) -> Result<(), WebviewError> {
+        unsafe { ffi::webview_eval(self.inner_webview(), js)? };
+        Ok(())
+    }
+
+    #[inline]
+    pub fn eval_fn(&self, function: &str, args: &[&str]) -> Result<(), WebviewError> {
+        let buffer = unsafe { &mut (*self.inner.get()).eval_buffer as &mut String};
+        buffer.clear();
+
+        buffer.push_str(function);
+        buffer.push('(');
+
+        let mut iter = args.iter().peekable();
+        while let Some(arg) = iter.next() {
+            buffer.push_str(arg);
+            if iter.peek().is_some() {
+                buffer.push(',');
+            }
+        }
+
+        buffer.push_str(");");
+
+        unsafe { ffi::webview_eval(self.inner_webview(), &buffer)? };
+        Ok(())
+    }
+
+    #[inline]
+    pub fn inject_css(&self, css: &str) -> Result<(), WebviewError> {
+        unsafe { ffi::webview_inject_css(self.inner_webview(), css)? };
+        Ok(())
+    }
+
+    #[inline]
+    pub fn set_title(&self, title: &str) -> Result<(), WebviewError> {
+        unsafe {
+            ffi::webview_set_title(self.inner_webview(), title)?;
+            Ok(())
+        }
+    }
+
+    #[inline]
+    pub fn set_fullscreen(&self, fullscreen: bool) {
+        unsafe { ffi::webview_set_fullscreen(self.inner_webview(), fullscreen) };
+    }
+
+    #[inline]
+    pub fn set_color(&self, color: impl Into<[u8; 3]>) {
+        let color = color.into();
+        unsafe { ffi::webview_set_color(self.inner_webview(), color[0], color[1], color[2]) };
+    }
+
+    #[inline]
+    pub fn dialog(&self) {
+        unimplemented!()
+    }
+
+    #[inline]
+    pub fn dispatch(&self, func: impl FnMut(&Webview<T, E>)) {
+        unsafe { ffi::webview_dispatch(self.inner_webview(), &func)};
+    }
+
+    #[inline]
+    pub fn terminate(&self) {
+        unsafe { ffi::webview_terminate(self.inner_webview()) };
+    }
+
+    #[inline]
+    pub fn userdata(&self) -> Option<&T> {
+        unsafe {
+            let inner = &*self.inner.get();
+            inner.userdata.as_ref()
+        }
+    }
+
+    #[inline]
+    pub fn userdata_mut(&self) -> Option<&mut T> {
+        unsafe {
+            let inner = &mut *self.inner.get();
+            inner.userdata.as_mut()
+        }
+    }
+
+    #[inline]
+    pub fn thread_handles(self) -> (MainHandle<T, E>, ThreadHandle<T, E>) {
+        let inner = unsafe {
+            mem::replace(&mut *self.inner.get(), mem::uninitialized())
+        };
+        mem::forget(self);
+
+        let main = Arc::new(Webview::from(inner));
+        let thread = Arc::clone(&main);
+
+        (MainHandle::new(main), ThreadHandle::new(thread))
+    }
+
+    #[inline]
+    fn external_invoke(&self) -> &mut dyn FnMut(&Webview<T, E>, &str) {
+        unsafe {
+            let inner = &mut *self.inner.get();
+            inner.external_invoke.as_mut().unwrap()
+        }
+    }
+}
+
+impl<T, E> Webview<T, E> {
+    #[inline]
+    fn inner_webview(&self) -> &mut webview {
+        unsafe {
+            let inner = &mut *self.inner.get();
+            &mut inner.webview
+        }
+    }
+}
+
+impl<T, E> Drop for Webview<T, E> {
+    #[inline]
+    fn drop(&mut self) {
+        unsafe { ffi::webview_exit(self.inner_webview()) };
+    }
+}
+
+pub struct MainHandle<T, E> {
+    inner: Arc<Webview<T, E>>
+}
+
+impl<T, E> MainHandle<T, E>
+where
+    T: Userdata,
+    E: FnMut(&Webview<T, E>, &str)
+{
+    #[inline]
+    fn new(webview: Arc<Webview<T, E>>) -> Self {
+        Self {
+            inner: webview
+        }
+    }
+
+    #[inline]
+    pub fn run(&self) {
+        self.inner.run();
+    }
+
+    #[inline]
+    pub fn run_with_init(&self, init: impl FnOnce()) {
+        self.inner.run_with_init(init);
+    }
+
+    #[inline]
+    pub fn eval(&self, js: &str) -> Result<(), WebviewError> {
+        self.inner.eval(js)
+    }
+
+    #[inline]
+    pub fn eval_fn(&self, function: &str, args: &[&str]) -> Result<(), WebviewError> {
+        self.inner.eval_fn(function, args)
+    }
+
+    #[inline]
+    pub fn inject_css(&self, css: &str) -> Result<(), WebviewError> {
+        self.inner.inject_css(css)
+    }
+
+    #[inline]
+    pub fn set_title(&self, title: &str) -> Result<(), WebviewError> {
+        self.inner.set_title(title)
+    }
+
+    #[inline]
+    pub fn set_fullscreen(&self, fullscreen: bool) {
+        self.inner.set_fullscreen(fullscreen);
+    }
+
+    #[inline]
+    pub fn set_color(&self, color: impl Into<[u8; 3]>) {
+        self.inner.set_color(color);
+    }
+
+    #[inline]
+    pub fn dialog(&self) {
+        self.inner.dialog();
+    }
+
+    #[inline]
+    pub fn dispatch(&self, func: impl FnMut(&Webview<T, E>)) {
+        self.inner.dispatch(func);
+    }
+
+    #[inline]
+    pub fn terminate(&self) {
+        self.inner.terminate();
+    }
+
+    #[inline]
+    pub fn userdata(&self) -> Option<&T> {
+        self.inner.userdata()
+    }
+
+    #[inline]
+    pub fn userdata_mut(&self) -> Option<&mut T> {
+        self.inner.userdata_mut()
+    }
+}
+
+unsafe impl<T, E> Send for ThreadHandle<T, E> where T: Send {}
+unsafe impl<T, E> Sync for ThreadHandle<T, E> where T: Sync {}
+
+#[derive(Clone)]
+pub struct ThreadHandle<T, E> {
+    inner: Arc<Webview<T, E>>
+}
+
+impl<T, E> ThreadHandle<T, E>
+where
+    T: Userdata,
+    E: FnMut(&Webview<T, E>, &str)
+{
+    #[inline]
+    fn new(webview: Arc<Webview<T, E>>) -> Self {
+        Self {
+            inner: webview
+        }
+    }
+
+    #[inline]
+    pub fn dispatch(&self, func: impl FnMut(&Webview<T, E>) + Send) {
+        let webview = Arc::deref(&self.inner);
+        unsafe { ffi::webview_dispatch(webview.inner_webview(), &func)};
+    }
+}
