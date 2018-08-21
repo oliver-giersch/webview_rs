@@ -6,4 +6,4 @@ authors = ["oliver <oliver.giersch@googlemail.com>"]
 
 [dependencies]
 #webview_rs = "*"
-webview_rs = { git = "https://github.com/oliver-giersch/webview_rs" }
+webview_rs = { path = "../../../webview_rs", version = "*" }

@@ -1,0 +1,16 @@
+[package]
+name = "webview_sys"
+version = "0.1.0"
+authors = ["oliver <oliver.giersch@googlemail.com>"]
+build = "build.rs"
+links = "webview"
+
+[lib]
+name = "webview_sys"
+path = "src/lib.rs"
+
+[dependencies]
+
+[build-dependencies]
+cc = "*"
+pkg-config = "*"

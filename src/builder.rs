@@ -8,7 +8,7 @@ use crate::ffi;
 use crate::userdata::Userdata;
 use crate::Webview;
 
-use webview_ffi::runtime_size_check;
+use webview_sys::runtime_size_check;
 
 pub struct WebviewBuilder<'title, 'content, S, C, T>
 where

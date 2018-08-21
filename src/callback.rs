@@ -3,7 +3,7 @@ use std::mem;
 use std::os::raw::{c_char, c_void};
 
 use crate::Webview;
-use webview_ffi::webview;
+use webview_sys::webview;
 
 /// Extern function for C callback
 ///

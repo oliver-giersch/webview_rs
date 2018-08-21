@@ -2,7 +2,7 @@
 
 #[macro_use]
 extern crate bitflags;
-extern crate webview_ffi;
+extern crate webview_sys;
 
 use std::cell::UnsafeCell;
 use std::mem;
@@ -14,7 +14,7 @@ pub use userdata::Userdata;
 
 use crate::error::WebviewError;
 use crate::ffi::LoopResult;
-use webview_ffi::webview;
+use webview_sys::webview;
 
 mod builder;
 mod callback;

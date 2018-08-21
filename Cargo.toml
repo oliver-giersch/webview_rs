@@ -9,4 +9,4 @@ keywords = ["webview", "gui"]
 
 [dependencies]
 bitflags = "*"
-webview_ffi = { path = "webview_ffi", version = "*" }
+webview_sys = { path = "webview_sys", version = "*" }
