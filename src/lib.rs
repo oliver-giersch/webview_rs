@@ -22,17 +22,6 @@ mod error;
 mod ffi;
 mod userdata;
 
-//type ExternalInvokeClosure<T, E> = FnMut(&Webview<T, E>, &str);
-//type DispatchClosure<T, E> = FnMut(&Webview<T, E>);
-//type DispatchClosureThreadSafe<T, E> = FnMut(&Webview<T, E>) + Send;
-
-/*pub fn webview<C>(title: &str, content: Content<C>, width: usize, height: usize, resizable: bool)
-where
-    C: AsRef<str>
-{
-    unimplemented!()
-}*/
-
 /// # Thread Safety
 ///
 /// The Webview struct is not thread-safe:
@@ -68,11 +57,7 @@ struct WebviewInner<T, E>{
     eval_buffer: String,
 }
 
-impl<T, E> Webview<T, E>
-where
-    T: Userdata,
-    E: FnMut(&Webview<T, E>, &str)
-{
+impl<T, E> Webview<T, E> {
     fn new(
         webview: webview,
         userdata: Option<T>,
@@ -89,6 +74,7 @@ where
         }
     }
 
+    #[inline]
     pub fn run(&self) {
         loop {
             unsafe {
@@ -175,18 +161,10 @@ where
     }
 
     #[inline]
-    pub fn userdata(&self) -> Option<&T> {
-        unsafe {
-            let inner = &*self.inner.get();
-            inner.userdata.as_ref()
-        }
-    }
-
-    #[inline]
-    pub fn userdata_mut(&self) -> Option<&mut T> {
+    fn inner_webview(&self) -> &mut webview {
         unsafe {
             let inner = &mut *self.inner.get();
-            inner.userdata.as_mut()
+            &mut inner.webview
         }
     }
 
@@ -202,22 +180,38 @@ where
 
         (MainHandle::new(main), ThreadHandle::new(thread))
     }
+}
 
+impl<T, E> Webview<T, E>
+where
+    T: Userdata,
+{
+    #[inline]
+    pub fn userdata(&self) -> Option<&T> {
+        unsafe {
+            let inner = &*self.inner.get();
+            inner.userdata.as_ref()
+        }
+    }
+
+    #[inline]
+    pub fn userdata_mut(&self) -> Option<&mut T> {
+        unsafe {
+            let inner = &mut *self.inner.get();
+            inner.userdata.as_mut()
+        }
+    }
+}
+
+impl<T, E> Webview<T, E>
+where
+    E: FnMut(&Webview<T, E>, &str)
+{
     #[inline]
     fn external_invoke(&self) -> &mut dyn FnMut(&Webview<T, E>, &str) {
         unsafe {
             let inner = &mut *self.inner.get();
             inner.external_invoke.as_mut().unwrap()
-        }
-    }
-}
-
-impl<T, E> Webview<T, E> {
-    #[inline]
-    fn inner_webview(&self) -> &mut webview {
-        unsafe {
-            let inner = &mut *self.inner.get();
-            &mut inner.webview
         }
     }
 }

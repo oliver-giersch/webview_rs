@@ -206,9 +206,6 @@ pub unsafe fn webview_dialog(
 
 #[inline]
 pub unsafe fn webview_dispatch<T, E>(webview: &mut ffi::webview, func: &dyn FnMut(&Webview<T, E>))
-where
-    T: Userdata,
-    E: FnMut(&Webview<T, E>, &str)
 {
     let callback = &func as *const _ as *mut c_void;
     ffi::webview_dispatch(
