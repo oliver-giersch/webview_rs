@@ -9,6 +9,7 @@ use std::mem;
 use std::ops::Deref;
 use std::sync::Arc;
 
+pub use builder::{Content, WebviewBuilder};
 pub use userdata::Userdata;
 
 use crate::error::WebviewError;
@@ -21,9 +22,9 @@ mod error;
 mod ffi;
 mod userdata;
 
-type ExternalInvokeClosure<T, E> = FnMut(&Webview<T, E>, &str);
-type DispatchClosure<T, E> = FnMut(&Webview<T, E>);
-type DispatchClosureThreadSafe<T, E> = FnMut(&Webview<T, E>) + Send;
+//type ExternalInvokeClosure<T, E> = FnMut(&Webview<T, E>, &str);
+//type DispatchClosure<T, E> = FnMut(&Webview<T, E>);
+//type DispatchClosureThreadSafe<T, E> = FnMut(&Webview<T, E>) + Send;
 
 /*pub fn webview<C>(title: &str, content: Content<C>, width: usize, height: usize, resizable: bool)
 where

@@ -10,13 +10,14 @@ use crate::userdata::Userdata;
 
 use webview_ffi::runtime_size_check;
 
-pub struct WebviewBuilder<'title, 'content, C, E, T>
+pub struct WebviewBuilder<'title, 'content, S, C, E, T>
 where
+    S: AsRef<str> + 'title,
     C: Into<Cow<'content, str>> + 'content,
     E: FnMut(&Webview<T, E>, &str),
     T: Userdata
 {
-    title: Option<&'title str>,
+    title: Option<S>,
     content: Option<Content<'content, C>>,
     width: Option<usize>,
     height: Option<usize>,
@@ -27,10 +28,12 @@ where
     deactivate_thread_check: bool,
     buffer_size: usize,
     error: Option<WebviewError>,
+    __marker: PhantomData<&'title str>,
 }
 
-impl<'title, 'content, C, E, T> WebviewBuilder<'title, 'content, C, E, T>
+impl<'title, 'content, S, C, E, T> WebviewBuilder<'title, 'content, S, C, E, T>
 where
+    S: AsRef<str> + 'title,
     C: Into<Cow<'content, str>> + 'content,
     E: FnMut(&Webview<T, E>, &str),
     T: Userdata
@@ -40,8 +43,8 @@ where
         Default::default()
     }
 
-    pub fn set_title(mut self, title: &'title impl AsRef<str>) -> Self {
-        self.title = Some(title.as_ref());
+    pub fn set_title(mut self, title: S) -> Self {
+        self.title = Some(title);
         self
     }
 
@@ -122,8 +125,7 @@ where
         }
 
         let title = self.title.ok_or(WebviewError::MissingArgs)?;
-        //TODO
-        let _content = self.content.ok_or(WebviewError::MissingArgs)?;
+        let content = self.content.ok_or(WebviewError::MissingArgs)?;
         let width = self.width.unwrap_or(800);
         let height = self.width.unwrap_or(600);
         let resizable = self.resizeable;
@@ -140,8 +142,9 @@ where
 
         unsafe {
             let webview = built.inner_webview();
-            ffi::struct_webview_set_title(webview, title)?;
-            //TODO: Content
+
+            ffi::struct_webview_set_title(webview, title.as_ref())?;
+            ffi::struct_webview_set_content(webview, content.format().as_ref())?;
             ffi::struct_webview_set_width(webview, width);
             ffi::struct_webview_set_height(webview, height);
             ffi::struct_webview_set_resizable(webview, resizable);
@@ -158,8 +161,9 @@ where
     }
 }
 
-impl<'title, 'content, E, T> WebviewBuilder<'title, 'content, &'content str, E, T>
+impl<'title, 'content, S, E, T> WebviewBuilder<'title, 'content, S, &'content str, E, T>
 where
+    S: AsRef<str> + 'title,
     E: FnMut(&Webview<T, E>, &str),
     T: Userdata
 {
@@ -175,8 +179,9 @@ where
 
 }
 
-impl<'title, 'content, C, E, T> Default for WebviewBuilder<'title, 'content, C, E, T>
+impl<'title, 'content, S, C, E, T> Default for WebviewBuilder<'title, 'content, S, C, E, T>
 where
+    S: AsRef<str> + 'title,
     C: Into<Cow<'content, str>> + 'content,
     E: FnMut(&Webview<T, E>, &str),
     T: Userdata
@@ -195,6 +200,7 @@ where
             deactivate_thread_check: false,
             buffer_size: 0,
             error: None,
+            __marker: PhantomData,
         }
     }
 }

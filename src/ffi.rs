@@ -60,9 +60,9 @@ pub unsafe fn struct_webview_set_title(webview: &mut ffi::webview, title: &str) 
 }
 
 #[inline]
-pub unsafe fn struct_webview_set_url(webview: &mut ffi::webview, url: &str) -> Result<(), FromBytesWithNulError> {
-    let url_cstr = CStr::from_bytes_with_nul(url.as_bytes())?;
-    ffi::struct_webview_set_url(webview as *mut _, url_cstr.as_ptr());
+pub unsafe fn struct_webview_set_content(webview: &mut ffi::webview, content: &str) -> Result<(), FromBytesWithNulError> {
+    let content_cstr = CStr::from_bytes_with_nul(content.as_bytes())?;
+    ffi::struct_webview_set_url(webview as *mut _, content_cstr.as_ptr());
     Ok(())
 }
 
