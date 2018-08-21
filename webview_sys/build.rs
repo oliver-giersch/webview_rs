@@ -6,6 +6,11 @@ use std::path::Path;
 use std::process::Command;
 
 fn main() {
+    // Initialize webview submodule if user forgot to clone parent repository with --recursive.
+    if !Path::new("webview/.git").exists() {
+        let _ = Command::new("git").args(&["submodule", "update", "--init"]).status();
+    }
+
     let mut build = cc::Build::new();
 
     build.flag_if_supported("-std=c11");
@@ -46,5 +51,5 @@ fn main() {
         panic!("build not supported for this target");
     }
 
-    build.compile("webview_c_lib")
+    build.compile("webview")
 }

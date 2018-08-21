@@ -42,7 +42,7 @@ pub struct webview {
 }
 
 /// webview_rs C wrapper functions
-extern {
+extern "C" {
     pub fn alloc_webview() -> *mut webview;
     pub fn free_webview(webview: *mut webview);
     pub fn struct_webview_size() -> usize;
@@ -60,7 +60,7 @@ extern {
     pub fn struct_webview_set_userdata(webview: *mut webview, userdata: *mut c_void);
 }
 
-extern {
+extern "C" {
     /// Creates simple webview with mandatory parameters only.
     pub fn webview(
         title: *const c_char,

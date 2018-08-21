@@ -1,0 +1,6 @@
+[submodule "webview_sys/vendor"]
+	path = webview_sys/vendor
+	url = https://github.com/zserge/webview.git
+[submodule "webview_sys/webview"]
+	path = webview_sys/webview
+	url = https://github.com/zserge/webview.git

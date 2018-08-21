@@ -1,3 +1,5 @@
+#define WEBVIEW_IMPLEMENTATION
+
 #include <stddef.h>
 #include "webview.h"
 
@@ -13,10 +15,6 @@ void free_webview(struct webview* webview) {
 size_t struct_webview_size() {
     return sizeof(struct webview);
 }
-
-//size_t struct_webview_align() {
-//    return alignof(struct webview);
-//}
 
 size_t struct_webview_priv_size() {
     return sizeof(struct webview_priv);

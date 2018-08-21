@@ -9,8 +9,8 @@ use crate::userdata::Userdata;
 use crate::Webview;
 use webview_sys as sys;
 
-type DispatchFn = ffi::c_webview_dispatch_fn;
-type InvokeFn = ffi::c_extern_callback_fn;
+type DispatchFn = sys::c_webview_dispatch_fn;
+type InvokeFn = sys::c_extern_callback_fn;
 
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 #[repr(C)]
@@ -48,13 +48,13 @@ bitflags! {
 }
 
 #[inline]
-pub unsafe fn struct_webview_new() -> ffi::webview {
+pub unsafe fn struct_webview_new() -> sys::webview {
     mem::uninitialized()
 }
 
 #[inline]
 pub unsafe fn struct_webview_set_title(
-    webview: &mut ffi::webview,
+    webview: &mut sys::webview,
     title: &str,
 ) -> Result<(), FromBytesWithNulError> {
     let title_cstr = CStr::from_bytes_with_nul(title.as_bytes())?;
@@ -64,36 +64,36 @@ pub unsafe fn struct_webview_set_title(
 
 #[inline]
 pub unsafe fn struct_webview_set_content(
-    webview: &mut ffi::webview,
+    webview: &mut sys::webview,
     content: &str,
 ) -> Result<(), FromBytesWithNulError> {
     let content_cstr = CStr::from_bytes_with_nul(content.as_bytes())?;
-    ffi::struct_webview_set_url(webview as *mut _, content_cstr.as_ptr());
+    sys::struct_webview_set_url(webview as *mut _, content_cstr.as_ptr());
     Ok(())
 }
 
 #[inline]
-pub unsafe fn struct_webview_set_width(webview: &mut ffi::webview, width: usize) {
+pub unsafe fn struct_webview_set_width(webview: &mut sys::webview, width: usize) {
     sys::struct_webview_set_width(webview as *mut _, width as c_int);
 }
 
 #[inline]
-pub unsafe fn struct_webview_set_height(webview: &mut ffi::webview, height: usize) {
-    sys::struct_webview_set_width(webview as *mut _, height as c_int);
+pub unsafe fn struct_webview_set_height(webview: &mut sys::webview, height: usize) {
+    sys::struct_webview_set_height(webview as *mut _, height as c_int);
 }
 
 #[inline]
-pub unsafe fn struct_webview_set_resizable(webview: &mut ffi::webview, resizable: bool) {
+pub unsafe fn struct_webview_set_resizable(webview: &mut sys::webview, resizable: bool) {
     sys::struct_webview_set_resizable(webview as *mut _, resizable as c_int);
 }
 
 #[inline]
-pub unsafe fn struct_webview_set_debug(webview: &mut ffi::webview, debug: bool) {
+pub unsafe fn struct_webview_set_debug(webview: &mut sys::webview, debug: bool) {
     sys::struct_webview_set_debug(webview as *mut _, debug as c_int);
 }
 
 #[inline]
-pub unsafe fn struct_webview_set_external_invoke_cb<T>(webview: &mut ffi::webview) {
+pub unsafe fn struct_webview_set_external_invoke_cb<T>(webview: &mut sys::webview) {
     sys::struct_webview_set_external_invoke_cb(
         webview as *mut _,
         Some(callback::invoke_handler::<T> as InvokeFn),
@@ -101,7 +101,7 @@ pub unsafe fn struct_webview_set_external_invoke_cb<T>(webview: &mut ffi::webvie
 }
 
 #[inline]
-pub unsafe fn struct_webview_set_userdata<T: Userdata>(webview: &mut ffi::webview, userdata: &T) {
+pub unsafe fn struct_webview_set_userdata<T: Userdata>(webview: &mut sys::webview, userdata: &T) {
     sys::struct_webview_set_userdata(webview as *mut _, userdata as *const _ as *mut c_void);
 }
 
@@ -116,7 +116,7 @@ pub unsafe fn webview_simple(
 ) -> Result<(), FromBytesWithNulError> {
     let title_cstr = CStr::from_bytes_with_nul(title.as_bytes())?;
     let content_cstr = CStr::from_bytes_with_nul(content.as_bytes())?;
-    ffi::webview(
+    sys::webview(
         title_cstr.as_ptr(),
         content_cstr.as_ptr(),
         width as c_int,
@@ -128,7 +128,7 @@ pub unsafe fn webview_simple(
 
 /// TODO: Return result
 #[inline]
-pub unsafe fn webview_init(webview: &mut ffi::webview) {
+pub unsafe fn webview_init(webview: &mut sys::webview) {
     sys::webview_init(webview as *mut _);
 }
 
@@ -136,14 +136,14 @@ pub unsafe fn webview_init(webview: &mut ffi::webview) {
 /// The result indicates whether another iterations should be run or the
 /// webview has been terminated.
 #[inline]
-pub unsafe fn webview_loop(webview: &mut ffi::webview, blocking: bool) -> LoopResult {
+pub unsafe fn webview_loop(webview: &mut sys::webview, blocking: bool) -> LoopResult {
     LoopResult::from(sys::webview_loop(webview as *mut _, blocking as c_int))
 }
 
 /// TODO: Return Result
 #[inline]
 pub unsafe fn webview_eval(
-    webview: &mut ffi::webview,
+    webview: &mut sys::webview,
     js: &str,
 ) -> Result<(), FromBytesWithNulError> {
     let js_cstr = CStr::from_bytes_with_nul(js.as_bytes())?;
@@ -154,7 +154,7 @@ pub unsafe fn webview_eval(
 /// TODO: Return Result
 #[inline]
 pub unsafe fn webview_inject_css(
-    webview: &mut ffi::webview,
+    webview: &mut sys::webview,
     css: &str,
 ) -> Result<(), FromBytesWithNulError> {
     let css_cstr = CStr::from_bytes_with_nul(css.as_bytes())?;
@@ -164,7 +164,7 @@ pub unsafe fn webview_inject_css(
 
 #[inline]
 pub unsafe fn webview_set_title(
-    webview: &mut ffi::webview,
+    webview: &mut sys::webview,
     title: &str,
 ) -> Result<(), FromBytesWithNulError> {
     let cstr = CStr::from_bytes_with_nul(title.as_bytes())?;
@@ -173,18 +173,18 @@ pub unsafe fn webview_set_title(
 }
 
 #[inline]
-pub unsafe fn webview_set_fullscreen(webview: &mut ffi::webview, fullscreen: bool) {
+pub unsafe fn webview_set_fullscreen(webview: &mut sys::webview, fullscreen: bool) {
     sys::webview_set_fullscreen(webview as *mut _, fullscreen as c_int);
 }
 
 #[inline]
-pub unsafe fn webview_set_color(webview: &mut ffi::webview, red: u8, green: u8, blue: u8) {
+pub unsafe fn webview_set_color(webview: &mut sys::webview, red: u8, green: u8, blue: u8) {
     sys::webview_set_color(webview as *mut _, red, green, blue);
 }
 
 #[inline]
 pub unsafe fn webview_dialog(
-    webview: &mut ffi::webview,
+    webview: &mut sys::webview,
     dialog_type: Dialog,
     flags: Flags,
     title: &str,
@@ -208,7 +208,7 @@ pub unsafe fn webview_dialog(
 }
 
 #[inline]
-pub unsafe fn webview_dispatch<T>(webview: &mut ffi::webview, func: &dyn FnMut(&Webview<T>)) {
+pub unsafe fn webview_dispatch<T>(webview: &mut sys::webview, func: &dyn FnMut(&Webview<T>)) {
     let callback = &func as *const _ as *mut c_void;
     sys::webview_dispatch(
         webview as *mut _,
@@ -218,12 +218,12 @@ pub unsafe fn webview_dispatch<T>(webview: &mut ffi::webview, func: &dyn FnMut(&
 }
 
 #[inline]
-pub unsafe fn webview_terminate(webview: &mut ffi::webview) {
+pub unsafe fn webview_terminate(webview: &mut sys::webview) {
     sys::webview_terminate(webview as *mut _);
 }
 
 #[inline]
-pub unsafe fn webview_exit(webview: &mut ffi::webview) {
+pub unsafe fn webview_exit(webview: &mut sys::webview) {
     sys::webview_exit(webview as *mut _);
 }
 
@@ -232,4 +232,29 @@ pub unsafe fn webview_print_log(log: &str) -> Result<(), FromBytesWithNulError> 
     let cstr = CStr::from_bytes_with_nul(log.as_bytes())?;
     sys::webview_print_log(cstr.as_ptr());
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use std::mem;
+
+    use super::*;
+
+    #[test]
+    fn simple() {
+        unsafe {
+            let mut webview = struct_webview_new();
+            struct_webview_set_title(&mut webview, "Simple Test\0")
+                .unwrap();
+            struct_webview_set_content(&mut webview, "https://en.wikipedia.org/wiki/Main_Page\0")
+                .unwrap();
+            struct_webview_set_width(&mut webview, 800);
+            struct_webview_set_height(&mut webview, 600);
+            struct_webview_set_resizable(&mut webview, true);
+
+            webview_init(&mut webview);
+            webview_exit(&mut webview);
+            assert!(true)
+        }
+    }
 }
