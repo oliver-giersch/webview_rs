@@ -1,6 +1,10 @@
+extern crate webview_rs;
+
 use std::sync::{Arc, Mutex};
 use std::time;
 use std::thread;
+
+use webview_rs::{Webview, WebviewBuilder, Content, Userdata};
 
 static HTML_DATA: &'static str = "";
 
@@ -34,7 +38,7 @@ impl Timer {
 fn main() {
     let timer: Arc<Timer> = Arc::new(Default::default());
 
-    let webview = WebviewBuilder::new()
+    let webview: Webview<Arc<Timer>> = WebviewBuilder::new()
         .set_title("Timer")
         .set_content(Content::Html(HTML_DATA))
         .set_width(400)
