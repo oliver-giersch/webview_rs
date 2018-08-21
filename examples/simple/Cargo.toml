@@ -1,7 +1,9 @@
 [package]
 name = "simple"
 version = "0.1.0"
+description = "A simple webview demonstration"
 authors = ["oliver <oliver.giersch@googlemail.com>"]
 
 [dependencies]
-webview_rs = { path = "../../../webview_rs", version = "*" }
+#webview_rs = "*"
+webview_rs = { git = "https://github.com/oliver-giersch/webview_rs" }

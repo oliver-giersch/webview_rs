@@ -3,7 +3,7 @@ name = "webview_ffi"
 version = "0.1.0"
 authors = ["oliver <oliver.giersch@googlemail.com>"]
 build = "build.rs"
-#links = "webview"
+links = "webview"
 
 [lib]
 name = "webview_ffi"

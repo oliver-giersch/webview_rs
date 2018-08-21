@@ -31,38 +31,40 @@ mod userdata;
 ///
 /// To create a thread-safe handle for a Webview, call the consuming function
 /// `webview_rs::Webview::dispatch_handles`.
-/// This function creates two handles, one for the main thread which can be used exactly like
-/// a normal Webview struct, and one which can be sent to another thread.
+/// This function creates two handles, one for the main thread which can be
+/// used exactly like a normal Webview struct, and one which can be sent to
+/// another thread.
 ///
-/// This `ThreadHandle` can be cloned and is only able to call dispatch closures, which are called
-/// in a thread-safe way.
-pub struct Webview<T, E> {
-    inner: UnsafeCell<WebviewInner<T, E>>,
+/// This `ThreadHandle` can be cloned and is only able to call dispatch
+/// closures, which are called in a thread-safe way.
+pub struct Webview<T=()> {
+    inner: UnsafeCell<WebviewInner<T>>,
 }
 
-impl<T, E> From<WebviewInner<T, E>> for Webview<T, E> {
+impl<T> From<WebviewInner<T>> for Webview<T> {
     #[inline]
-    fn from(inner: WebviewInner<T, E>) -> Self {
+    fn from(inner: WebviewInner<T>) -> Self {
         Self {
-            inner: UnsafeCell::new(inner)
+            inner: UnsafeCell::new(inner),
         }
     }
 }
 
 #[repr(C)]
-struct WebviewInner<T, E>{
-    webview: webview,
-    userdata: Option<T>,
-    external_invoke: Option<E>,
-    eval_buffer: String,
+struct WebviewInner<T=()> {
+    webview:         webview,
+    userdata:        Option<T>,
+    external_invoke: Option<Box<dyn FnMut(&Webview<T>, &str)>>,
+    eval_buffer:     String,
 }
 
-impl<T, E> Webview<T, E> {
+impl<T> Webview<T> {
+    #[inline]
     fn new(
         webview: webview,
         userdata: Option<T>,
-        external_invoke: Option<E>,
-        buffer_size: usize
+        external_invoke: Option<Box<dyn FnMut(&Webview<T>, &str)>>,
+        buffer_size: usize,
     ) -> Self {
         Self {
             inner: UnsafeCell::new(WebviewInner {
@@ -70,7 +72,7 @@ impl<T, E> Webview<T, E> {
                 userdata,
                 external_invoke,
                 eval_buffer: String::with_capacity(buffer_size),
-            })
+            }),
         }
     }
 
@@ -78,7 +80,8 @@ impl<T, E> Webview<T, E> {
     pub fn run(&self) {
         loop {
             unsafe {
-                if let LoopResult::Exit = ffi::webview_loop(self.inner_webview(), true) { //TODO: customize blocking
+                if let LoopResult::Exit = ffi::webview_loop(self.inner_webview(), true) {
+                    //TODO: customize blocking
                     break;
                 }
             }
@@ -100,7 +103,7 @@ impl<T, E> Webview<T, E> {
 
     #[inline]
     pub fn eval_fn(&self, function: &str, args: &[&str]) -> Result<(), WebviewError> {
-        let buffer = unsafe { &mut (*self.inner.get()).eval_buffer as &mut String};
+        let buffer = unsafe { &mut (*self.inner.get()).eval_buffer as &mut String };
         buffer.clear();
 
         buffer.push_str(function);
@@ -151,8 +154,8 @@ impl<T, E> Webview<T, E> {
     }
 
     #[inline]
-    pub fn dispatch(&self, func: impl FnMut(&Webview<T, E>)) {
-        unsafe { ffi::webview_dispatch(self.inner_webview(), &func)};
+    pub fn dispatch(&self, func: impl FnMut(&Webview<T>)) {
+        unsafe { ffi::webview_dispatch(self.inner_webview(), &func) };
     }
 
     #[inline]
@@ -169,10 +172,8 @@ impl<T, E> Webview<T, E> {
     }
 
     #[inline]
-    pub fn thread_handles(self) -> (MainHandle<T, E>, ThreadHandle<T, E>) {
-        let inner = unsafe {
-            mem::replace(&mut *self.inner.get(), mem::uninitialized())
-        };
+    pub fn thread_handles(self) -> (MainHandle<T>, ThreadHandle<T>) {
+        let inner = unsafe { mem::replace(&mut *self.inner.get(), mem::uninitialized()) };
         mem::forget(self);
 
         let main = Arc::new(Webview::from(inner));
@@ -182,7 +183,7 @@ impl<T, E> Webview<T, E> {
     }
 }
 
-impl<T, E> Webview<T, E>
+impl<T> Webview<T>
 where
     T: Userdata,
 {
@@ -203,40 +204,34 @@ where
     }
 }
 
-impl<T, E> Webview<T, E>
-where
-    E: FnMut(&Webview<T, E>, &str)
-{
+impl<T> Webview<T> {
     #[inline]
-    fn external_invoke(&self) -> &mut dyn FnMut(&Webview<T, E>, &str) {
+    fn external_invoke(&self) -> &mut dyn FnMut(&Webview<T>, &str) {
         unsafe {
             let inner = &mut *self.inner.get();
-            inner.external_invoke.as_mut().unwrap()
+            inner.external_invoke
+                .as_mut()
+                .expect("no external invoke callback is set")
+                .as_mut()
         }
     }
 }
 
-impl<T, E> Drop for Webview<T, E> {
+impl<T> Drop for Webview<T> {
     #[inline]
     fn drop(&mut self) {
         unsafe { ffi::webview_exit(self.inner_webview()) };
     }
 }
 
-pub struct MainHandle<T, E> {
-    inner: Arc<Webview<T, E>>
+pub struct MainHandle<T> {
+    inner: Arc<Webview<T>>,
 }
 
-impl<T, E> MainHandle<T, E>
-where
-    T: Userdata,
-    E: FnMut(&Webview<T, E>, &str)
-{
+impl<T> MainHandle<T> {
     #[inline]
-    fn new(webview: Arc<Webview<T, E>>) -> Self {
-        Self {
-            inner: webview
-        }
+    fn new(webview: Arc<Webview<T>>) -> Self {
+        Self { inner: webview }
     }
 
     #[inline]
@@ -285,7 +280,7 @@ where
     }
 
     #[inline]
-    pub fn dispatch(&self, func: impl FnMut(&Webview<T, E>)) {
+    pub fn dispatch(&self, func: impl FnMut(&Webview<T>)) {
         self.inner.dispatch(func);
     }
 
@@ -293,7 +288,12 @@ where
     pub fn terminate(&self) {
         self.inner.terminate();
     }
+}
 
+impl<T> MainHandle<T>
+where
+    T: Userdata
+{
     #[inline]
     pub fn userdata(&self) -> Option<&T> {
         self.inner.userdata()
@@ -305,29 +305,23 @@ where
     }
 }
 
-unsafe impl<T, E> Send for ThreadHandle<T, E> where T: Send {}
-unsafe impl<T, E> Sync for ThreadHandle<T, E> where T: Sync {}
+unsafe impl<T> Send for ThreadHandle<T> where T: Send {}
+unsafe impl<T> Sync for ThreadHandle<T> where T: Sync {}
 
 #[derive(Clone)]
-pub struct ThreadHandle<T, E> {
-    inner: Arc<Webview<T, E>>
+pub struct ThreadHandle<T> {
+    inner: Arc<Webview<T>>,
 }
 
-impl<T, E> ThreadHandle<T, E>
-where
-    T: Userdata,
-    E: FnMut(&Webview<T, E>, &str)
-{
+impl<T> ThreadHandle<T> {
     #[inline]
-    fn new(webview: Arc<Webview<T, E>>) -> Self {
-        Self {
-            inner: webview
-        }
+    fn new(webview: Arc<Webview<T>>) -> Self {
+        Self { inner: webview }
     }
 
     #[inline]
-    pub fn dispatch(&self, func: impl FnMut(&Webview<T, E>) + Send) {
+    pub fn dispatch(&self, func: impl FnMut(&Webview<T>) + Send) {
         let webview = Arc::deref(&self.inner);
-        unsafe { ffi::webview_dispatch(webview.inner_webview(), &func)};
+        unsafe { ffi::webview_dispatch(webview.inner_webview(), &func) };
     }
 }

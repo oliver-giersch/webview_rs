@@ -1,8 +1,4 @@
-use std::{
-    error,
-    ffi::FromBytesWithNulError,
-    fmt
-};
+use std::{error, ffi::FromBytesWithNulError, fmt};
 
 use self::WebviewError::*;
 

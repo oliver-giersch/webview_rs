@@ -4,9 +4,9 @@ use std::{
     os::raw::{c_char, c_int, c_void},
 };
 
-use crate::Webview;
 use crate::callback;
 use crate::userdata::Userdata;
+use crate::Webview;
 use webview_ffi as ffi;
 
 type DispatchFn = ffi::c_webview_dispatch_fn;
@@ -15,15 +15,15 @@ type InvokeFn = ffi::c_extern_callback_fn;
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 #[repr(C)]
 pub enum Dialog {
-    Open  = 0,
-    Save  = 1,
+    Open = 0,
+    Save = 1,
     Alert = 2,
 }
 
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 pub enum LoopResult {
     Continue,
-    Exit
+    Exit,
 }
 
 impl From<c_int> for LoopResult {
@@ -53,14 +53,20 @@ pub unsafe fn struct_webview_new() -> ffi::webview {
 }
 
 #[inline]
-pub unsafe fn struct_webview_set_title(webview: &mut ffi::webview, title: &str) -> Result<(), FromBytesWithNulError> {
+pub unsafe fn struct_webview_set_title(
+    webview: &mut ffi::webview,
+    title: &str,
+) -> Result<(), FromBytesWithNulError> {
     let title_cstr = CStr::from_bytes_with_nul(title.as_bytes())?;
     ffi::struct_webview_set_title(webview as *mut _, title_cstr.as_ptr());
     Ok(())
 }
 
 #[inline]
-pub unsafe fn struct_webview_set_content(webview: &mut ffi::webview, content: &str) -> Result<(), FromBytesWithNulError> {
+pub unsafe fn struct_webview_set_content(
+    webview: &mut ffi::webview,
+    content: &str,
+) -> Result<(), FromBytesWithNulError> {
     let content_cstr = CStr::from_bytes_with_nul(content.as_bytes())?;
     ffi::struct_webview_set_url(webview as *mut _, content_cstr.as_ptr());
     Ok(())
@@ -87,15 +93,10 @@ pub unsafe fn struct_webview_set_debug(webview: &mut ffi::webview, debug: bool) 
 }
 
 #[inline]
-pub unsafe fn struct_webview_set_external_invoke_cb<T, E>(webview: &mut ffi::webview)
-where
-    T: Userdata,
-    E: FnMut(&Webview<T, E>, &str)
-{
+pub unsafe fn struct_webview_set_external_invoke_cb<T>(webview: &mut ffi::webview) {
     ffi::struct_webview_set_external_invoke_cb(
         webview as *mut _,
-        //Some(mem::transmute(callback::invoke_handler::<T, E>)),
-        Some(callback::invoke_handler::<T, E> as InvokeFn)
+        Some(callback::invoke_handler::<T> as InvokeFn),
     );
 }
 
@@ -111,9 +112,8 @@ pub unsafe fn webview_simple(
     content: &str,
     width: usize,
     height: usize,
-    resizable: bool
-) -> Result<(), FromBytesWithNulError>
-{
+    resizable: bool,
+) -> Result<(), FromBytesWithNulError> {
     let title_cstr = CStr::from_bytes_with_nul(title.as_bytes())?;
     let content_cstr = CStr::from_bytes_with_nul(content.as_bytes())?;
     ffi::webview(
@@ -121,7 +121,7 @@ pub unsafe fn webview_simple(
         content_cstr.as_ptr(),
         width as c_int,
         height as c_int,
-        resizable as c_int
+        resizable as c_int,
     );
     Ok(())
 }
@@ -133,8 +133,8 @@ pub unsafe fn webview_init(webview: &mut ffi::webview) {
 }
 
 /// Executes the main loop for one iteration.
-/// The result indicates whether another iterations should be run or the webview has been
-/// terminated.
+/// The result indicates whether another iterations should be run or the
+/// webview has been terminated.
 #[inline]
 pub unsafe fn webview_loop(webview: &mut ffi::webview, blocking: bool) -> LoopResult {
     LoopResult::from(ffi::webview_loop(webview as *mut _, blocking as c_int))
@@ -142,7 +142,10 @@ pub unsafe fn webview_loop(webview: &mut ffi::webview, blocking: bool) -> LoopRe
 
 /// TODO: Return Result
 #[inline]
-pub unsafe fn webview_eval(webview: &mut ffi::webview, js: &str) -> Result<(), FromBytesWithNulError>{
+pub unsafe fn webview_eval(
+    webview: &mut ffi::webview,
+    js: &str,
+) -> Result<(), FromBytesWithNulError> {
     let js_cstr = CStr::from_bytes_with_nul(js.as_bytes())?;
     ffi::webview_eval(webview as *mut _, js_cstr.as_ptr());
     Ok(())
@@ -150,14 +153,20 @@ pub unsafe fn webview_eval(webview: &mut ffi::webview, js: &str) -> Result<(), F
 
 /// TODO: Return Result
 #[inline]
-pub unsafe fn webview_inject_css(webview: &mut ffi::webview, css: &str) -> Result<(), FromBytesWithNulError>{
+pub unsafe fn webview_inject_css(
+    webview: &mut ffi::webview,
+    css: &str,
+) -> Result<(), FromBytesWithNulError> {
     let css_cstr = CStr::from_bytes_with_nul(css.as_bytes())?;
     ffi::webview_eval(webview as *mut _, css_cstr.as_ptr());
     Ok(())
 }
 
 #[inline]
-pub unsafe fn webview_set_title(webview: &mut ffi::webview, title: &str) -> Result<(), FromBytesWithNulError> {
+pub unsafe fn webview_set_title(
+    webview: &mut ffi::webview,
+    title: &str,
+) -> Result<(), FromBytesWithNulError> {
     let cstr = CStr::from_bytes_with_nul(title.as_bytes())?;
     ffi::webview_set_title(webview as *mut _, cstr.as_ptr());
     Ok(())
@@ -170,12 +179,7 @@ pub unsafe fn webview_set_fullscreen(webview: &mut ffi::webview, fullscreen: boo
 
 #[inline]
 pub unsafe fn webview_set_color(webview: &mut ffi::webview, red: u8, green: u8, blue: u8) {
-    ffi::webview_set_color(
-        webview as *mut _,
-        red,
-        green,
-        blue,
-    );
+    ffi::webview_set_color(webview as *mut _, red, green, blue);
 }
 
 #[inline]
@@ -185,9 +189,8 @@ pub unsafe fn webview_dialog(
     flags: Flags,
     title: &str,
     arg: &str,
-    result_buffer: &mut [u8]
-) -> Result<(), FromBytesWithNulError>
-{
+    result_buffer: &mut [u8],
+) -> Result<(), FromBytesWithNulError> {
     let title_cstr = CStr::from_bytes_with_nul(title.as_bytes())?;
     let arg_cstr = CStr::from_bytes_with_nul(arg.as_bytes())?;
     let (result_ptr, result_size) = (result_buffer.as_mut_ptr(), result_buffer.len());
@@ -199,19 +202,18 @@ pub unsafe fn webview_dialog(
         title_cstr.as_ptr(),
         arg_cstr.as_ptr(),
         result_ptr as *mut c_char,
-        result_size
+        result_size,
     );
     Ok(())
 }
 
 #[inline]
-pub unsafe fn webview_dispatch<T, E>(webview: &mut ffi::webview, func: &dyn FnMut(&Webview<T, E>))
-{
+pub unsafe fn webview_dispatch<T>(webview: &mut ffi::webview, func: &dyn FnMut(&Webview<T>)) {
     let callback = &func as *const _ as *mut c_void;
     ffi::webview_dispatch(
         webview as *mut _,
-        Some(callback::dispatch_handler::<T, E> as DispatchFn),
-        callback
+        Some(callback::dispatch_handler::<T> as DispatchFn),
+        callback,
     );
 }
 
