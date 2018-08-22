@@ -38,7 +38,7 @@ impl Timer {
 fn main() {
     let timer: Arc<Timer> = Arc::new(Default::default());
 
-    let webview: Webview<Arc<Timer>> = WebviewBuilder::new()
+    let webview = WebviewBuilder::new()
         .set_title("Timer")
         .set_content(Content::Html(HTML_DATA))
         .set_width(400)

@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::marker::PhantomData;
 use std::path::Path;
 use std::thread;
 
@@ -10,13 +9,9 @@ use crate::Webview;
 
 use webview_sys::runtime_size_check;
 
-pub struct WebviewBuilder<'title, 'content, S, C, T>
-where
-    S: AsRef<str> + 'title,
-    C: Into<Cow<'content, str>> + 'content
-{
-    title:                   Option<S>,
-    content:                 Option<Content<'content, C>>,
+pub struct WebviewBuilder<'title, 'content, T> {
+    title:                   Option<Cow<'title, str>>,
+    content:                 Option<Cow<'content, str>>,
     width:                   Option<usize>,
     height:                  Option<usize>,
     resizeable:              bool,
@@ -26,78 +21,87 @@ where
     deactivate_thread_check: bool,
     buffer_size:             usize,
     error:                   Option<WebviewError>,
-    __marker:                PhantomData<&'title str>,
 }
 
-impl<'title, 'content, S, C, T> WebviewBuilder<'title, 'content, S, C, T>
-where
-    S: AsRef<str> + 'title,
-    C: Into<Cow<'content, str>> + 'content
-{
+impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
+    #[inline]
     pub fn new() -> Self {
         runtime_size_check();
         Default::default()
     }
 
-    pub fn set_title(mut self, title: S) -> Self {
-        self.title = Some(title);
+    #[inline]
+    pub fn set_title(mut self, title: impl Into<Cow<'title, str>>) -> Self {
+        self.title = Some(title.into());
         self
     }
 
-    pub fn set_content_http(self, http: C) -> Self {
-        self.set_content(Content::Http(http))
+    #[inline]
+    pub fn set_content_http(self, http: impl Into<Cow<'content, str>>) -> Self {
+        self.set_content(Content::Http(http.into()))
     }
 
-    pub fn set_content_https(self, https: C) -> Self {
-        self.set_content(Content::Https(https))
+    #[inline]
+    pub fn set_content_https(self, https: impl Into<Cow<'title, str>>) -> Self {
+        self.set_content(Content::Https(https.into()))
     }
 
-    pub fn set_content_html(self, html: C) -> Self {
-        self.set_content(Content::Html(html))
+    #[inline]
+    pub fn set_content_html(self, html: impl Into<Cow<'title, str>>) -> Self {
+        self.set_content(Content::Html(html.into()))
     }
 
-    pub fn set_content_raw(self, raw: C) -> Self {
-        self.set_content(Content::Raw(raw))
+    #[inline]
+    pub fn set_content_raw(self, raw: impl Into<Cow<'title, str>>) -> Self {
+        self.set_content(Content::Raw(raw.into()))
     }
 
-    pub fn set_content(mut self, content: impl Into<Content<'content, C>>) -> Self {
+    #[inline]
+    pub fn set_content<C>(mut self, content: impl Into<Cow<'content, str>>) -> Self {
         let content = content.into();
         self.content = Some(content);
         self
     }
 
+    #[inline]
     pub fn set_width(mut self, width: usize) -> Self {
         assert!(width > 0);
         self.width = Some(width);
         self
     }
 
+    #[inline]
     pub fn set_height(mut self, height: usize) -> Self {
         assert!(height > 0);
         self.height = Some(height);
         self
     }
 
+    #[inline]
     pub fn set_resizable(mut self, resizable: bool) -> Self {
         self.resizeable = resizable;
         self
     }
 
+    #[inline]
     pub fn set_debug(mut self, debug: bool) -> Self {
         self.debug = debug;
         self
     }
 
+    #[inline]
     pub fn set_external_invoke(mut self, func: impl FnMut(&Webview<T>, &str) + 'static) -> Self {
         self.external_invoke = Some(Box::new(func));
         self
     }
 
+    #[inline]
     pub fn set_initial_buffer_size(mut self, buffer_size: usize) -> Self {
         self.buffer_size = buffer_size;
         self
     }
 
+    #[inline]
     pub fn deactivate_thread_check(mut self) -> Self {
         self.deactivate_thread_check = true;
         self
@@ -152,10 +156,8 @@ where
     }
 }
 
-impl<'title, 'content, S, C, T> WebviewBuilder<'title, 'content, S, C, T>
+impl<'title, 'content, T> WebviewBuilder<'title, 'content, T>
 where
-    S: AsRef<str> + 'title,
-    C: Into<Cow<'content, str>> + 'content,
     T: Userdata,
 {
     pub fn set_userdata(mut self, userdata: T) -> Self {
@@ -164,8 +166,7 @@ where
     }
 }
 
-
-impl<'title, 'content, S, T> WebviewBuilder<'title, 'content, S, &'content str, T>
+impl<'title, 'content, T> WebviewBuilder<'title, 'content, S, &'content str, T>
 where
     S: AsRef<str> + 'title,
 {
@@ -180,11 +181,7 @@ where
     }
 }
 
-impl<'title, 'content, S, C, T> Default for WebviewBuilder<'title, 'content, S, C, T>
-where
-    S: AsRef<str> + 'title,
-    C: Into<Cow<'content, str>> + 'content
-{
+impl<'title, 'content, T> Default for WebviewBuilder<'title, 'content, T> {
     #[inline]
     fn default() -> Self {
         Self {
@@ -199,48 +196,97 @@ where
             deactivate_thread_check: false,
             buffer_size:             0,
             error:                   None,
-            __marker:                PhantomData,
         }
     }
 }
 
-pub enum Content<'c, C>
-where
-    C: Into<Cow<'c, str>> + 'c,
+pub enum Content<C>
+where C: Into<String>
 {
-    Http(C),
-    Https(C),
+    Url(C),
     File(C),
     Html(C),
     Raw(C),
-    #[doc(hidden)]
-    __NonExhaustive(PhantomData<&'c str>),
 }
 
-impl<'content, C> Content<'content, C>
-where
-    C: Into<Cow<'content, str>> + 'content,
-{
+impl<C> Into<String> for Content<C> {
     #[inline]
-    fn format(self) -> Cow<'content, str> {
+    fn into(self) -> String {
         match self {
-            Content::Http(content) => prepend_str("http://", content),
-            Content::Https(content) => prepend_str("https://", content),
-            Content::File(content) => prepend_str("file:///", content),
-            Content::Html(content) => prepend_str("data:text/html,", content),
-            Content::Raw(content) => content.into(),
-            _ => panic!("attempted to format internal enum variant"),
+            Content::Url(content) => {
+                let mut content = content.into();
+                if content.starts_with("http://") || content.starts_with("https://") {
+                    content
+                } else {
+                    content.insert(0, "http://");
+                    content
+                }
+            },
+            Content::File(content) => {
+                let mut content = content.into();
+                if content.starts_with("file:///") {
+                    content
+                } else {
+                    content.insert(0, "file:///");
+                    content
+                }
+            },
+
+            Content::Http(content)  => format!("http://{}", content),
+            Content::Https(content) => format!("https://{}", content),
+            Content::File(content)  => format!("file:///{}", content),
+            Content::Html(content)  => format!("http://{}", content),
+            Content::Http(content)  => format!("data:text/html,{}", content),
+            Content::Raw(content)   => content.into()
         }
     }
 }
 
-#[inline]
-fn prepend_str<'content, C>(prepend: &str, content: C) -> Cow<'content, str>
-where
-    C: Into<Cow<'content, str>> + 'content,
-{
-    let mut cow = content.into();
-    cow.to_mut().insert_str(0, prepend);
+use std::ffi::{CStr, CString, FromBytesWithNulError, NulError};
 
-    cow
+pub enum CStrError {
+    FromBytesWithNul(FromBytesWithNulError),
+    Nul(NulError),
+}
+
+impl From<FromBytesWithNulError> for CStrError {
+    #[inline]
+    fn from(err: FromBytesWithNulError) -> Self {
+        CStrError(err)
+    }
+}
+
+impl From<NulError> for CStrError {
+    #[inline]
+    fn from(err: NulError) -> Self {
+        CStrError::Nul(err)
+    }
+}
+
+fn scratch(string: impl Into<Cow<str>>) -> Result<Cow<CStr>, CStrError> {
+    match string.into() {
+        Cow::Borrowed(ref string) => {
+            if let Some('\0') = string.chars().last() {
+                let cstr = CStr::from_bytes_with_nul(string.as_bytes())?;
+
+                Ok(Cow::from(cstr))
+            } else {
+                let mut buffer = String::with_capacity(string.len() + 1);
+                buffer.push_str(string);
+                buffer.push('\0');
+
+                let cstring = CString::new(buffer)?;
+                Ok(Cow::from(cstring))
+            }
+
+            //check if last == 0 -> Cow::Borrowed(CStr::...)
+            //else -> allo
+        },
+        Cow::Owned(string) => {
+            let cstring = CString::new(string)?;
+            Ok(Cow::from(cstring))
+        }
+    }
+
+    unimplemented!()
 }

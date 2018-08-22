@@ -37,7 +37,7 @@ mod userdata;
 ///
 /// This `ThreadHandle` can be cloned and is only able to call dispatch
 /// closures, which are called in a thread-safe way.
-pub struct Webview<T=()> {
+pub struct Webview<T> {
     inner: UnsafeCell<WebviewInner<T>>,
 }
 
@@ -51,7 +51,7 @@ impl<T> From<WebviewInner<T>> for Webview<T> {
 }
 
 #[repr(C)]
-struct WebviewInner<T=()> {
+struct WebviewInner<T> {
     webview:         webview,
     userdata:        Option<T>,
     external_invoke: Option<Box<dyn FnMut(&Webview<T>, &str)>>,
@@ -97,7 +97,12 @@ impl<T> Webview<T> {
 
     #[inline]
     pub fn eval(&self, js: &str) -> Result<(), WebviewError> {
-        unsafe { ffi::webview_eval(self.inner_webview(), js)? };
+        let buffer = self.eval_buffer();
+        buffer.clear();
+
+        buffer.push_str(js);
+
+        unsafe { ffi::webview_eval(self.inner_webview(), buffer)? };
         Ok(())
     }
 
@@ -164,14 +169,6 @@ impl<T> Webview<T> {
     }
 
     #[inline]
-    fn inner_webview(&self) -> &mut webview {
-        unsafe {
-            let inner = &mut *self.inner.get();
-            &mut inner.webview
-        }
-    }
-
-    #[inline]
     pub fn thread_handles(self) -> (MainHandle<T>, ThreadHandle<T>) {
         let inner = unsafe { mem::replace(&mut *self.inner.get(), mem::uninitialized()) };
         mem::forget(self);
@@ -180,6 +177,30 @@ impl<T> Webview<T> {
         let thread = Arc::clone(&main);
 
         (MainHandle::new(main), ThreadHandle::new(thread))
+    }
+
+    #[inline]
+    fn inner_webview(&self) -> &mut webview {
+        unsafe {
+            let inner = &mut *self.inner.get();
+            &mut inner.webview
+        }
+    }
+
+    #[inline]
+    fn external_invoke(&self) -> &mut dyn FnMut(&Webview<T>, &str) {
+        unsafe {
+            let inner = &mut *self.inner.get();
+            inner.external_invoke
+                .as_mut()
+                .expect("no external invoke callback is set")
+                .as_mut()
+        }
+    }
+
+    #[inline]
+    fn eval_buffer(&self) -> &mut String {
+        unsafe { &mut (*self.inner.get()).eval_buffer as &mut String }
     }
 }
 
@@ -200,19 +221,6 @@ where
         unsafe {
             let inner = &mut *self.inner.get();
             inner.userdata.as_mut()
-        }
-    }
-}
-
-impl<T> Webview<T> {
-    #[inline]
-    fn external_invoke(&self) -> &mut dyn FnMut(&Webview<T>, &str) {
-        unsafe {
-            let inner = &mut *self.inner.get();
-            inner.external_invoke
-                .as_mut()
-                .expect("no external invoke callback is set")
-                .as_mut()
         }
     }
 }

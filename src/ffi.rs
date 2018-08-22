@@ -1,5 +1,5 @@
 use std::{
-    ffi::{CStr, FromBytesWithNulError},
+    ffi::{CStr, CString, NulError, FromBytesWithNulError},
     mem,
     os::raw::{c_char, c_int, c_void},
 };
@@ -8,6 +8,8 @@ use crate::callback;
 use crate::userdata::Userdata;
 use crate::Webview;
 use webview_sys as sys;
+
+pub type Result = std::result::Result<(), CStrError>;
 
 type DispatchFn = sys::c_webview_dispatch_fn;
 type InvokeFn = sys::c_extern_callback_fn;
@@ -55,20 +57,20 @@ pub unsafe fn struct_webview_new() -> sys::webview {
 #[inline]
 pub unsafe fn struct_webview_set_title(
     webview: &mut sys::webview,
-    title: &str,
-) -> Result<(), FromBytesWithNulError> {
-    let title_cstr = CStr::from_bytes_with_nul(title.as_bytes())?;
-    sys::struct_webview_set_title(webview as *mut _, title_cstr.as_ptr());
+    title: impl Into<String>
+) -> Result {
+    let title_cstring = CString::new(title.into())?;
+    sys::struct_webview_set_title(webview as *mut _, title_cstring.as_ptr());
     Ok(())
 }
 
 #[inline]
 pub unsafe fn struct_webview_set_content(
     webview: &mut sys::webview,
-    content: &str,
-) -> Result<(), FromBytesWithNulError> {
-    let content_cstr = CStr::from_bytes_with_nul(content.as_bytes())?;
-    sys::struct_webview_set_url(webview as *mut _, content_cstr.as_ptr());
+    content: impl Into<String>,
+) -> Result {
+    let content_cstring = CString::new(content.into())?;
+    sys::struct_webview_set_url(webview as *mut _, content_cstring.as_ptr());
     Ok(())
 }
 
@@ -108,14 +110,14 @@ pub unsafe fn struct_webview_set_userdata<T: Userdata>(webview: &mut sys::webvie
 ///
 #[inline]
 pub unsafe fn webview_simple(
-    title: &str,
-    content: &str,
+    title: impl Into<String>,
+    content: impl Into<String>,
     width: usize,
     height: usize,
     resizable: bool,
-) -> Result<(), FromBytesWithNulError> {
-    let title_cstr = CStr::from_bytes_with_nul(title.as_bytes())?;
-    let content_cstr = CStr::from_bytes_with_nul(content.as_bytes())?;
+) -> Result {
+    let title_cstring = CString::new(title.into())?;
+    let content_cstring = CString::new(content.into())?;
     sys::webview(
         title_cstr.as_ptr(),
         content_cstr.as_ptr(),
@@ -142,10 +144,8 @@ pub unsafe fn webview_loop(webview: &mut sys::webview, blocking: bool) -> LoopRe
 
 /// TODO: Return Result
 #[inline]
-pub unsafe fn webview_eval(
-    webview: &mut sys::webview,
-    js: &str,
-) -> Result<(), FromBytesWithNulError> {
+pub unsafe fn webview_eval(webview: &mut sys::webview, buffer: &mut String) -> Result {
+    buffer.push('\0');
     let js_cstr = CStr::from_bytes_with_nul(js.as_bytes())?;
     sys::webview_eval(webview as *mut _, js_cstr.as_ptr());
     Ok(())
@@ -232,6 +232,29 @@ pub unsafe fn webview_print_log(log: &str) -> Result<(), FromBytesWithNulError> 
     let cstr = CStr::from_bytes_with_nul(log.as_bytes())?;
     sys::webview_print_log(cstr.as_ptr());
     Ok(())
+}
+
+pub enum CStrError {
+    FromBytesWithNul(FromBytesWithNulError),
+    Nul(NulError),
+}
+
+impl From<FromBytesWithNulError> for CStrError {
+    #[inline]
+    fn from(err: FromBytesWithNulError) -> Self {
+        CStrError(err)
+    }
+}
+
+impl From<NulError> for CStrError {
+    #[inline]
+    fn from(err: NulError) -> Self {
+        CStrError::Nul(err)
+    }
+}
+
+mod conversion {
+
 }
 
 #[cfg(test)]
