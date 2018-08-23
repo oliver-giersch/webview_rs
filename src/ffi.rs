@@ -1,19 +1,17 @@
 use std::{
-    ffi::{CStr, CString, NulError, FromBytesWithNulError},
+    borrow::Cow,
     mem,
     os::raw::{c_char, c_int, c_void},
+    result,
 };
+
+pub use crate::ffi::conversion::CStrConversionError;
 
 use webview_sys as sys;
 
-use crate::{
-    callback,
-    ffi::conversion::{CStrConversionError, convert_to_cstring},
-    userdata::Userdata,
-    Webview
-};
+use crate::{callback, ffi::conversion::convert_to_cstring, userdata::Userdata, Webview};
 
-pub type Result = std::result::Result<(), CStrConversionError>;
+pub type Result = result::Result<(), CStrConversionError>;
 
 type DispatchFn = sys::c_webview_dispatch_fn;
 type InvokeFn = sys::c_extern_callback_fn;
@@ -59,22 +57,26 @@ pub unsafe fn struct_webview_new() -> sys::webview {
 }
 
 #[inline]
-pub unsafe fn struct_webview_set_title(
+pub unsafe fn struct_webview_set_title<'s>(
     webview: &mut sys::webview,
-    title: impl Into<String>
+    title: impl Into<Cow<'s, str>>,
 ) -> Result {
-    let title_cstring = CString::new(title.into())?;
-    sys::struct_webview_set_title(webview as *mut _, title_cstring.as_ptr());
+    //FIXME: Shit gets heap allocated! And dropped before build is called!
+    let title_cstr = convert_to_cstring(title)?;
+    let ptr = title_cstr.as_ptr();
+    sys::struct_webview_set_title(webview as *mut _, ptr);
     Ok(())
 }
 
 #[inline]
-pub unsafe fn struct_webview_set_content(
+pub unsafe fn struct_webview_set_content<'s>(
     webview: &mut sys::webview,
-    content: impl Into<String>,
+    content: impl Into<Cow<'s, str>>,
 ) -> Result {
-    let content_cstring = CString::new(content.into())?;
-    sys::struct_webview_set_url(webview as *mut _, content_cstring.as_ptr());
+    //FIXME: Shit gets heap allocated! And dropped before build is called!
+    let content_cstr = convert_to_cstring(content)?;
+    let ptr = content_cstr.as_ptr();
+    sys::struct_webview_set_url(webview as *mut _, ptr);
     Ok(())
 }
 
@@ -113,15 +115,16 @@ pub unsafe fn struct_webview_set_userdata<T: Userdata>(webview: &mut sys::webvie
 
 ///
 #[inline]
-pub unsafe fn webview_simple(
-    title: impl Into<String>,
-    content: impl Into<String>,
+pub unsafe fn webview_simple<'title, 'content>(
+    title: impl Into<Cow<'title, str>>,
+    content: impl Into<Cow<'content, str>>,
     width: usize,
     height: usize,
     resizable: bool,
 ) -> Result {
-    let title_cstring = CString::new(title.into())?;
-    let content_cstring = CString::new(content.into())?;
+    let title_cstr = convert_to_cstring(title)?;
+    let content_cstr = convert_to_cstring(content)?;
+
     sys::webview(
         title_cstr.as_ptr(),
         content_cstr.as_ptr(),
@@ -150,29 +153,28 @@ pub unsafe fn webview_loop(webview: &mut sys::webview, blocking: bool) -> LoopRe
 #[inline]
 pub unsafe fn webview_eval(webview: &mut sys::webview, buffer: &mut String) -> Result {
     buffer.push('\0');
-    let js_cstr = CStr::from_bytes_with_nul(js.as_bytes())?;
+    let js_cstr = convert_to_cstring(buffer.as_str())?;;
     sys::webview_eval(webview as *mut _, js_cstr.as_ptr());
     Ok(())
 }
 
 /// TODO: Return Result
 #[inline]
-pub unsafe fn webview_inject_css(
-    webview: &mut sys::webview,
-    css: &str,
-) -> Result<(), FromBytesWithNulError> {
-    let css_cstr = CStr::from_bytes_with_nul(css.as_bytes())?;
+pub unsafe fn webview_inject_css(webview: &mut sys::webview, buffer: &mut String) -> Result {
+    buffer.push('\0');
+    let css_cstr = convert_to_cstring(buffer.as_str())?;
     sys::webview_eval(webview as *mut _, css_cstr.as_ptr());
     Ok(())
 }
 
 #[inline]
-pub unsafe fn webview_set_title(
+pub unsafe fn webview_set_title<'s>(
     webview: &mut sys::webview,
-    title: &str,
-) -> Result<(), FromBytesWithNulError> {
-    let cstr = CStr::from_bytes_with_nul(title.as_bytes())?;
-    sys::webview_set_title(webview as *mut _, cstr.as_ptr());
+    title: impl Into<Cow<'s, str>>,
+) -> Result {
+    //FIXME: Shit gets heap allocated! And dropped before build is called! Although: webview might take care on its own for this one
+    let title_cstr = convert_to_cstring(title)?;
+    sys::webview_set_title(webview as *mut _, title_cstr.as_ptr());
     Ok(())
 }
 
@@ -191,12 +193,12 @@ pub unsafe fn webview_dialog(
     webview: &mut sys::webview,
     dialog_type: Dialog,
     flags: Flags,
-    title: &str,
-    arg: &str,
+    title: &str, //TODO: impl Into<Cow<str>>
+    arg: &str,   //TODO: impl Into<Cow<str>>
     result_buffer: &mut [u8],
-) -> Result<(), FromBytesWithNulError> {
-    let title_cstr = CStr::from_bytes_with_nul(title.as_bytes())?;
-    let arg_cstr = CStr::from_bytes_with_nul(arg.as_bytes())?;
+) -> Result {
+    let title_cstr = convert_to_cstring(title)?;
+    let arg_cstr = convert_to_cstring(arg)?;
     let (result_ptr, result_size) = (result_buffer.as_mut_ptr(), result_buffer.len());
 
     sys::webview_dialog(
@@ -232,9 +234,9 @@ pub unsafe fn webview_exit(webview: &mut sys::webview) {
 }
 
 #[inline]
-pub unsafe fn webview_print_log(log: &str) -> Result<(), FromBytesWithNulError> {
-    let cstr = CStr::from_bytes_with_nul(log.as_bytes())?;
-    sys::webview_print_log(cstr.as_ptr());
+pub unsafe fn webview_print_log<'s>(log: impl Into<Cow<'s, str>>) -> Result {
+    let log_cstr = convert_to_cstring(log)?;
+    sys::webview_print_log(log_cstr.as_ptr());
     Ok(())
 }
 
@@ -242,7 +244,9 @@ mod conversion {
     use std::borrow::Cow;
     use std::ffi::{CStr, CString, FromBytesWithNulError, NulError};
 
-    pub fn convert_to_cstring(string: impl Into<Cow<str>>) -> Result<Cow<CStr>, CStrConversionError> {
+    pub fn convert_to_cstring<'s>(
+        string: impl Into<Cow<'s, str>>,
+    ) -> Result<Cow<'s, CStr>, CStrConversionError> {
         match string.into() {
             Cow::Borrowed(ref string) => {
                 if string.ends_with('\0') {
@@ -251,12 +255,11 @@ mod conversion {
                 } else {
                     let mut buffer = String::with_capacity(string.len() + 1);
                     buffer.push_str(string);
-                    buffer.push('\0');
 
                     let cstring = CString::new(buffer)?;
                     Ok(Cow::from(cstring))
                 }
-            },
+            }
             Cow::Owned(string) => {
                 let cstring = CString::new(string)?;
                 Ok(Cow::from(cstring))
@@ -264,6 +267,7 @@ mod conversion {
         }
     }
 
+    #[derive(Debug)]
     pub enum CStrConversionError {
         FromBytesWithNul(FromBytesWithNulError),
         Nul(NulError),
@@ -272,7 +276,7 @@ mod conversion {
     impl From<FromBytesWithNulError> for CStrConversionError {
         #[inline]
         fn from(err: FromBytesWithNulError) -> Self {
-            CStrConversionError(err)
+            CStrConversionError::FromBytesWithNul(err)
         }
     }
 
@@ -294,8 +298,7 @@ mod test {
     fn simple() {
         unsafe {
             let mut webview = struct_webview_new();
-            struct_webview_set_title(&mut webview, "Simple Test\0")
-                .unwrap();
+            struct_webview_set_title(&mut webview, "Simple Test\0").unwrap();
             struct_webview_set_content(&mut webview, "https://en.wikipedia.org/wiki/Main_Page\0")
                 .unwrap();
             struct_webview_set_width(&mut webview, 800);

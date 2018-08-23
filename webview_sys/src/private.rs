@@ -1,9 +1,9 @@
 #[cfg(any(target_os = "linux", target_os = "bsd"))]
 pub use self::linux::webview_private;
-#[cfg(target_os = "windows")]
-pub use self::windows::webview_private;
 #[cfg(target_os = "macos")]
 pub use self::macos::webview_private;
+#[cfg(target_os = "windows")]
+pub use self::windows::webview_private;
 
 #[cfg(any(target_os = "linux", target_os = "bsd"))]
 mod linux {

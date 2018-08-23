@@ -55,7 +55,7 @@ extern "C" {
     pub fn struct_webview_set_debug(webview: *mut webview, debug: c_int);
     pub fn struct_webview_set_external_invoke_cb(
         webview: *mut webview,
-        external_invoke_cb: Option<c_extern_callback_fn>
+        external_invoke_cb: Option<c_extern_callback_fn>,
     );
     pub fn struct_webview_set_userdata(webview: *mut webview, userdata: *mut c_void);
 }
@@ -67,7 +67,7 @@ extern "C" {
         url: *const c_char,
         width: c_int,
         height: c_int,
-        resizable: c_int
+        resizable: c_int,
     ) -> c_int;
 
     /// Initializes the webview struct (returns -1 if initialization fails)
@@ -89,12 +89,7 @@ extern "C" {
     pub fn webview_set_fullscreen(webview: *mut webview, fullscreen: c_int) -> c_void;
 
     /// Set the color at runtime
-    pub fn webview_set_color(
-        webview: *mut webview,
-        red: u8,
-        green: u8,
-        blue: u8
-    ) -> c_void;
+    pub fn webview_set_color(webview: *mut webview, red: u8, green: u8, blue: u8) -> c_void;
 
     ///
     pub fn webview_dialog(
@@ -104,14 +99,14 @@ extern "C" {
         title: *const c_char,
         arg: *const c_char,
         result: *mut c_char,
-        result_size: usize
+        result_size: usize,
     ) -> c_void;
 
     /// Dispatch a callback from another thread
     pub fn webview_dispatch(
         webview: *mut webview,
         func: Option<c_webview_dispatch_fn>,
-        arg: *mut c_void
+        arg: *mut c_void,
     ) -> c_void;
 
     /// Terminates the webview main loop
@@ -137,7 +132,10 @@ mod test {
     fn struct_sizes() {
         unsafe {
             assert_eq!(mem::size_of::<webview>(), struct_webview_size());
-            assert_eq!(mem::size_of::<webview_private>(), struct_webview_priv_size());
+            assert_eq!(
+                mem::size_of::<webview_private>(),
+                struct_webview_priv_size()
+            );
         }
     }
 
@@ -147,20 +145,16 @@ mod test {
             let mut webview = mem::uninitialized();
             struct_webview_set_title(
                 &mut webview as *mut _,
-                "test".as_bytes().as_ptr() as *const c_char
+                "test".as_bytes().as_ptr() as *const c_char,
             );
             struct_webview_set_url(
                 &mut webview as *mut _,
-                "https://en.wikipedia.org/wiki/Main_Page".as_bytes().as_ptr() as *const c_char
+                "https://en.wikipedia.org/wiki/Main_Page"
+                    .as_bytes()
+                    .as_ptr() as *const c_char,
             );
-            struct_webview_set_width(
-                &mut webview as *mut _,
-                800
-            );
-            struct_webview_set_height(
-                &mut webview as *mut _,
-                60
-            );
+            struct_webview_set_width(&mut webview as *mut _, 800);
+            struct_webview_set_height(&mut webview as *mut _, 60);
 
             webview_init(&mut webview as *mut _);
             webview_exit(&mut webview as *mut _);

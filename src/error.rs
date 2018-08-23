@@ -1,12 +1,13 @@
-use std::{error, ffi::FromBytesWithNulError, fmt};
+use std::{error, fmt};
 
 use self::WebviewError::*;
+use crate::ffi::CStrConversionError;
 
 #[derive(Debug)]
 pub enum WebviewError {
     MissingArgs,
     InvalidPath,
-    InvalidStr(FromBytesWithNulError),
+    InvalidStr(CStrConversionError),
     InvalidThread,
 }
 
@@ -25,9 +26,9 @@ impl fmt::Display for WebviewError {
 
 impl error::Error for WebviewError {}
 
-impl From<FromBytesWithNulError> for WebviewError {
+impl From<CStrConversionError> for WebviewError {
     #[inline]
-    fn from(error: FromBytesWithNulError) -> Self {
+    fn from(error: CStrConversionError) -> Self {
         WebviewError::InvalidStr(error)
     }
 }

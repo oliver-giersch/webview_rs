@@ -4,6 +4,7 @@
 extern crate bitflags;
 extern crate webview_sys;
 
+use std::borrow::Cow;
 use std::cell::UnsafeCell;
 use std::mem;
 use std::ops::Deref;
@@ -37,7 +38,7 @@ mod userdata;
 ///
 /// This `ThreadHandle` can be cloned and is only able to call dispatch
 /// closures, which are called in a thread-safe way.
-pub struct Webview<T> {
+pub struct Webview<T = ()> {
     inner: UnsafeCell<WebviewInner<T>>,
 }
 
@@ -51,7 +52,7 @@ impl<T> From<WebviewInner<T>> for Webview<T> {
 }
 
 #[repr(C)]
-struct WebviewInner<T> {
+struct WebviewInner<T = ()> {
     webview:         webview,
     userdata:        Option<T>,
     external_invoke: Option<Box<dyn FnMut(&Webview<T>, &str)>>,
@@ -99,7 +100,6 @@ impl<T> Webview<T> {
     pub fn eval(&self, js: &str) -> Result<(), WebviewError> {
         let buffer = self.eval_buffer();
         buffer.clear();
-
         buffer.push_str(js);
 
         unsafe { ffi::webview_eval(self.inner_webview(), buffer)? };
@@ -108,9 +108,8 @@ impl<T> Webview<T> {
 
     #[inline]
     pub fn eval_fn(&self, function: &str, args: &[&str]) -> Result<(), WebviewError> {
-        let buffer = unsafe { &mut (*self.inner.get()).eval_buffer as &mut String };
+        let buffer = self.eval_buffer();
         buffer.clear();
-
         buffer.push_str(function);
         buffer.push('(');
 
@@ -124,18 +123,22 @@ impl<T> Webview<T> {
 
         buffer.push_str(");");
 
-        unsafe { ffi::webview_eval(self.inner_webview(), &buffer)? };
+        unsafe { ffi::webview_eval(self.inner_webview(), buffer)? };
         Ok(())
     }
 
     #[inline]
     pub fn inject_css(&self, css: &str) -> Result<(), WebviewError> {
-        unsafe { ffi::webview_inject_css(self.inner_webview(), css)? };
+        let buffer = self.eval_buffer();
+        buffer.clear();
+        buffer.push_str(css);
+
+        unsafe { ffi::webview_inject_css(self.inner_webview(), buffer)? };
         Ok(())
     }
 
     #[inline]
-    pub fn set_title(&self, title: &str) -> Result<(), WebviewError> {
+    pub fn set_title<'s>(&self, title: impl Into<Cow<'s, str>>) -> Result<(), WebviewError> {
         unsafe {
             ffi::webview_set_title(self.inner_webview(), title)?;
             Ok(())
@@ -191,7 +194,8 @@ impl<T> Webview<T> {
     fn external_invoke(&self) -> &mut dyn FnMut(&Webview<T>, &str) {
         unsafe {
             let inner = &mut *self.inner.get();
-            inner.external_invoke
+            inner
+                .external_invoke
                 .as_mut()
                 .expect("no external invoke callback is set")
                 .as_mut()
@@ -300,7 +304,7 @@ impl<T> MainHandle<T> {
 
 impl<T> MainHandle<T>
 where
-    T: Userdata
+    T: Userdata,
 {
     #[inline]
     pub fn userdata(&self) -> Option<&T> {
