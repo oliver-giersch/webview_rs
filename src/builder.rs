@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::marker::PhantomData;
 use std::path::Path;
 use std::thread;
 
@@ -38,28 +39,22 @@ impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
 
     #[inline]
     pub fn set_content_http(self, http: impl Into<Cow<'content, str>>) -> Self {
-        self.set_content(Content::Http(http.into()))
+        self.set_content(Content::Http(http).into())
     }
 
     #[inline]
     pub fn set_content_https(self, https: impl Into<Cow<'title, str>>) -> Self {
-        self.set_content(Content::Https(https.into()))
+        self.set_content(Content::Https(https).into())
     }
 
     #[inline]
     pub fn set_content_html(self, html: impl Into<Cow<'title, str>>) -> Self {
-        self.set_content(Content::Html(html.into()))
-    }
-
-    #[inline]
-    pub fn set_content_raw(self, raw: impl Into<Cow<'title, str>>) -> Self {
-        self.set_content(Content::Raw(raw.into()))
+        self.set_content(Content::Html(html).into())
     }
 
     #[inline]
     pub fn set_content<C>(mut self, content: impl Into<Cow<'content, str>>) -> Self {
-        let content = content.into();
-        self.content = Some(content);
+        self.content = Some(content.into());
         self
     }
 
@@ -90,6 +85,7 @@ impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
     }
 
     #[inline]
+    //TODO: Find out why 'static
     pub fn set_external_invoke(mut self, func: impl FnMut(&Webview<T>, &str) + 'static) -> Self {
         self.external_invoke = Some(Box::new(func));
         self
@@ -166,11 +162,9 @@ where
     }
 }
 
-impl<'title, 'content, T> WebviewBuilder<'title, 'content, S, &'content str, T>
-where
-    S: AsRef<str> + 'title,
-{
-    pub fn set_content_file(mut self, path: &'content impl AsRef<Path>) -> Self {
+impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
+    pub fn set_content_file(mut self, path: impl Into<Cow<'content, Path>>) -> Self {
+
         match path.as_ref().to_str() {
             Some(path) => self.set_content(Content::File(path)),
             None => {
@@ -200,93 +194,92 @@ impl<'title, 'content, T> Default for WebviewBuilder<'title, 'content, T> {
     }
 }
 
-pub enum Content<C>
-where C: Into<String>
+pub enum Content<'content, C>
+where
+    C: Into<Cow<'content, str>>
 {
     Url(C),
     File(C),
     Html(C),
     Raw(C),
+    __Hidden(PhantomData<&'content str>)
 }
 
-impl<C> Into<String> for Content<C> {
+impl<'content, C> Into<Cow<'content, str>> for Content<'content, C> {
     #[inline]
-    fn into(self) -> String {
+    fn into(self) -> Cow<'content, str> {
         match self {
-            Content::Url(content) => {
-                let mut content = content.into();
-                if content.starts_with("http://") || content.starts_with("https://") {
-                    content
-                } else {
-                    content.insert(0, "http://");
-                    content
-                }
-            },
-            Content::File(content) => {
-                let mut content = content.into();
-                if content.starts_with("file:///") {
-                    content
-                } else {
-                    content.insert(0, "file:///");
-                    content
-                }
-            },
-
-            Content::Http(content)  => format!("http://{}", content),
-            Content::Https(content) => format!("https://{}", content),
-            Content::File(content)  => format!("file:///{}", content),
-            Content::Html(content)  => format!("http://{}", content),
-            Content::Http(content)  => format!("data:text/html,{}", content),
-            Content::Raw(content)   => content.into()
+            Content::Url(content)  => into_url(content),
+            Content::File(content) => into_file_path(content),
+            Content::Html(content) => into_html(content),
+            Content::__Hidden(_)   => panic!("enum variant for internal use only"),
         }
     }
 }
 
-use std::ffi::{CStr, CString, FromBytesWithNulError, NulError};
-
-pub enum CStrError {
-    FromBytesWithNul(FromBytesWithNulError),
-    Nul(NulError),
-}
-
-impl From<FromBytesWithNulError> for CStrError {
-    #[inline]
-    fn from(err: FromBytesWithNulError) -> Self {
-        CStrError(err)
-    }
-}
-
-impl From<NulError> for CStrError {
-    #[inline]
-    fn from(err: NulError) -> Self {
-        CStrError::Nul(err)
-    }
-}
-
-fn scratch(string: impl Into<Cow<str>>) -> Result<Cow<CStr>, CStrError> {
-    match string.into() {
-        Cow::Borrowed(ref string) => {
-            if let Some('\0') = string.chars().last() {
-                let cstr = CStr::from_bytes_with_nul(string.as_bytes())?;
-
-                Ok(Cow::from(cstr))
+fn into_url(content: impl Into<Cow<str>>) -> Cow<str> {
+    let content = content.into();
+    match content {
+        Cow::Borrowed(string) => {
+            if string_starts_with_any(string, &["http://", "https://"]) {
+                content
             } else {
-                let mut buffer = String::with_capacity(string.len() + 1);
-                buffer.push_str(string);
-                buffer.push('\0');
-
-                let cstring = CString::new(buffer)?;
-                Ok(Cow::from(cstring))
+                Cow::from(format!("http://{}", string))
             }
-
-            //check if last == 0 -> Cow::Borrowed(CStr::...)
-            //else -> allo
         },
-        Cow::Owned(string) => {
-            let cstring = CString::new(string)?;
-            Ok(Cow::from(cstring))
+        Cow::Owned(mut string) => {
+            if string_starts_with_any(&string, &["http://", "https://"]) {
+                content
+            } else {
+                string.insert_str(0, "http://");
+                Cow::from(string)
+            }
         }
     }
+}
 
-    unimplemented!()
+fn into_file_path(content: impl Into<Cow<str>>) -> Cow<str> {
+    let content = content.into();
+    match content {
+        Cow::Borrowed(string) => {
+            if string.starts_with("file:///") {
+                content
+            } else {
+                Cow::from(format!("file:///{}", string))
+            }
+        },
+        Cow::Owned(mut string) => {
+            if string.starts_with("file:///") {
+                content
+            } else {
+                string.insert_str(0, "file:///");
+                Cow::from(string)
+            }
+        }
+    }
+}
+
+fn into_html(content: impl Into<Cow<str>>) -> Cow<str> {
+    let content = content.into();
+    match content {
+        Cow::Borrowed(string) => {
+            if string.starts_with("data:text/html,") {
+                content
+            } else {
+                Cow::from(format!("data:text/html,{}", string))
+            }
+        },
+        Cow::Owned(mut string) => {
+            if string.starts_with("data:text/html,") {
+                content
+            } else {
+                string.insert_str(0, "data:text/html,");
+                Cow::from(string)
+            }
+        }
+    }
+}
+
+fn string_starts_with_any(string: &str, any: &[&str]) -> bool {
+    any.iter().any(|&contain| string.starts_with(contain))
 }

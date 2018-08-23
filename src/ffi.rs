@@ -4,12 +4,16 @@ use std::{
     os::raw::{c_char, c_int, c_void},
 };
 
-use crate::callback;
-use crate::userdata::Userdata;
-use crate::Webview;
 use webview_sys as sys;
 
-pub type Result = std::result::Result<(), CStrError>;
+use crate::{
+    callback,
+    ffi::conversion::{CStrConversionError, convert_to_cstring},
+    userdata::Userdata,
+    Webview
+};
+
+pub type Result = std::result::Result<(), CStrConversionError>;
 
 type DispatchFn = sys::c_webview_dispatch_fn;
 type InvokeFn = sys::c_extern_callback_fn;
@@ -234,27 +238,50 @@ pub unsafe fn webview_print_log(log: &str) -> Result<(), FromBytesWithNulError> 
     Ok(())
 }
 
-pub enum CStrError {
-    FromBytesWithNul(FromBytesWithNulError),
-    Nul(NulError),
-}
-
-impl From<FromBytesWithNulError> for CStrError {
-    #[inline]
-    fn from(err: FromBytesWithNulError) -> Self {
-        CStrError(err)
-    }
-}
-
-impl From<NulError> for CStrError {
-    #[inline]
-    fn from(err: NulError) -> Self {
-        CStrError::Nul(err)
-    }
-}
-
 mod conversion {
+    use std::borrow::Cow;
+    use std::ffi::{CStr, CString, FromBytesWithNulError, NulError};
 
+    pub fn convert_to_cstring(string: impl Into<Cow<str>>) -> Result<Cow<CStr>, CStrConversionError> {
+        match string.into() {
+            Cow::Borrowed(ref string) => {
+                if string.ends_with('\0') {
+                    let cstr = CStr::from_bytes_with_nul(string.as_bytes())?;
+                    Ok(Cow::from(cstr))
+                } else {
+                    let mut buffer = String::with_capacity(string.len() + 1);
+                    buffer.push_str(string);
+                    buffer.push('\0');
+
+                    let cstring = CString::new(buffer)?;
+                    Ok(Cow::from(cstring))
+                }
+            },
+            Cow::Owned(string) => {
+                let cstring = CString::new(string)?;
+                Ok(Cow::from(cstring))
+            }
+        }
+    }
+
+    pub enum CStrConversionError {
+        FromBytesWithNul(FromBytesWithNulError),
+        Nul(NulError),
+    }
+
+    impl From<FromBytesWithNulError> for CStrConversionError {
+        #[inline]
+        fn from(err: FromBytesWithNulError) -> Self {
+            CStrConversionError(err)
+        }
+    }
+
+    impl From<NulError> for CStrConversionError {
+        #[inline]
+        fn from(err: NulError) -> Self {
+            CStrConversionError::Nul(err)
+        }
+    }
 }
 
 #[cfg(test)]
