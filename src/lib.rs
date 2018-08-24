@@ -39,23 +39,25 @@ mod userdata;
 /// This `ThreadHandle` can be cloned and is only able to call dispatch
 /// closures, which are called in a thread-safe way.
 pub struct Webview<T = ()> {
-    inner: UnsafeCell<WebviewInner<T>>,
+    inner: UnsafeCell<Inner<T>>,
 }
 
-impl<T> From<WebviewInner<T>> for Webview<T> {
+impl<T> From<Inner<T>> for Webview<T> {
     #[inline]
-    fn from(inner: WebviewInner<T>) -> Self {
+    fn from(inner: Inner<T>) -> Self {
         Self {
             inner: UnsafeCell::new(inner),
         }
     }
 }
 
+type BoxedExternalInvoke<T> = Box<dyn FnMut(&Webview<T>, &str)>;
+
 #[repr(C)]
-struct WebviewInner<T = ()> {
+struct Inner<T = ()> {
     webview:         webview,
     userdata:        Option<T>,
-    external_invoke: Option<Box<dyn FnMut(&Webview<T>, &str)>>,
+    external_invoke: Option<BoxedExternalInvoke<T>>,
     storage:         StringStorage,
 }
 
@@ -64,15 +66,15 @@ impl<T> Webview<T> {
     fn new(
         webview: webview,
         userdata: Option<T>,
-        external_invoke: Option<Box<dyn FnMut(&Webview<T>, &str)>>,
-        buffer_size: usize,
+        external_invoke: Option<BoxedExternalInvoke<T>>,
+        storage: StringStorage,
     ) -> Self {
         Self {
-            inner: UnsafeCell::new(WebviewInner {
+            inner: UnsafeCell::new(Inner {
                 webview,
                 userdata,
                 external_invoke,
-                eval_buffer: String::with_capacity(buffer_size),
+                storage,
             }),
         }
     }
@@ -98,42 +100,41 @@ impl<T> Webview<T> {
 
     #[inline]
     pub fn eval(&self, js: &str) -> Result<(), WebviewError> {
-        let buffer = self.eval_buffer();
-        buffer.clear();
-        buffer.push_str(js);
+        let buffer = self.storage();
+        buffer.eval_buffer.clear();
+        buffer.eval_buffer.push_str(js);
 
-        unsafe { ffi::webview_eval(self.inner_webview(), buffer)? };
+        unsafe { ffi::webview_eval(self.inner_webview(), buffer.nul_terminated_buffer())? };
         Ok(())
     }
 
     #[inline]
     pub fn eval_fn(&self, function: &str, args: &[&str]) -> Result<(), WebviewError> {
-        let buffer = self.eval_buffer();
-        buffer.clear();
-        buffer.push_str(function);
-        buffer.push('(');
+        let storage = self.storage();
+        storage.eval_buffer.clear();
+        storage.eval_buffer.push_str(function);
+        storage.eval_buffer.push('(');
 
         let mut iter = args.iter().peekable();
         while let Some(arg) = iter.next() {
-            buffer.push_str(arg);
+            storage.eval_buffer.push_str(arg);
             if iter.peek().is_some() {
-                buffer.push(',');
+                storage.eval_buffer.push(',');
             }
         }
 
-        buffer.push_str(");");
-
-        unsafe { ffi::webview_eval(self.inner_webview(), buffer)? };
+        storage.eval_buffer.push_str(");");
+        unsafe { ffi::webview_eval(self.inner_webview(), storage.nul_terminated_buffer())? };
         Ok(())
     }
 
     #[inline]
     pub fn inject_css(&self, css: &str) -> Result<(), WebviewError> {
-        let buffer = self.eval_buffer();
-        buffer.clear();
-        buffer.push_str(css);
+        let storage = self.storage();
+        storage.eval_buffer.clear();
+        storage.eval_buffer.push_str(css);
 
-        unsafe { ffi::webview_inject_css(self.inner_webview(), buffer)? };
+        unsafe { ffi::webview_inject_css(self.inner_webview(), storage.nul_terminated_buffer())? };
         Ok(())
     }
 
@@ -203,8 +204,8 @@ impl<T> Webview<T> {
     }
 
     #[inline]
-    fn eval_buffer(&self) -> &mut String {
-        unsafe { &mut (*self.inner.get()).eval_buffer as &mut String }
+    fn storage(&self) -> &mut StringStorage {
+        unsafe { &mut (*self.inner.get()).storage as &mut StringStorage }
     }
 }
 

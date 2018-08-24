@@ -1,10 +1,10 @@
 use std::borrow::Cow;
 use std::marker::PhantomData;
-use std::path::Path;
+//use std::path::Path;
 use std::thread;
 
 use crate::error::WebviewError;
-use crate::ffi;
+use crate::ffi::{self, convert_to_cstring, StringStorage};
 use crate::userdata::Userdata;
 use crate::Webview;
 
@@ -114,8 +114,8 @@ impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
             }
         }
 
-        let title = self.title.ok_or(WebviewError::MissingArgs)?.into_owned();
-        let content = self.content.ok_or(WebviewError::MissingArgs)?.into_owned();
+        let title = self.title.ok_or(WebviewError::MissingArgs)?;
+        let content = self.content.ok_or(WebviewError::MissingArgs)?;
         let width = self.width.unwrap_or(800);
         let height = self.height.unwrap_or(600);
         let resizable = self.resizeable;
@@ -123,18 +123,24 @@ impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
         let has_external_invoke = self.external_invoke.is_some();
 
         let webview = unsafe { ffi::struct_webview_new() };
+
+        let storage = StringStorage::new(
+            convert_to_cstring(title)?,
+            convert_to_cstring(content)?,
+            self.buffer_size
+        );
         let built = Webview::new(
             webview,
             self.userdata,
             self.external_invoke,
-            self.buffer_size,
+            storage
         );
 
         unsafe {
             let webview = built.inner_webview();
 
-            ffi::struct_webview_set_title(webview, title)?;
-            ffi::struct_webview_set_content(webview, content)?;
+            ffi::struct_webview_set_title(webview, &built.storage().title);
+            ffi::struct_webview_set_content(webview, &built.storage().content);
             ffi::struct_webview_set_width(webview, width);
             ffi::struct_webview_set_height(webview, height);
             ffi::struct_webview_set_resizable(webview, resizable);
