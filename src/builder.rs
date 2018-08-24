@@ -114,10 +114,8 @@ impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
             }
         }
 
-        let title = self.title.ok_or(WebviewError::MissingArgs)?
-            .into_owned();
-        let content = self.content.ok_or(WebviewError::MissingArgs)?
-            .into_owned();
+        let title = self.title.ok_or(WebviewError::MissingArgs)?.into_owned();
+        let content = self.content.ok_or(WebviewError::MissingArgs)?.into_owned();
         let width = self.width.unwrap_or(800);
         let height = self.height.unwrap_or(600);
         let resizable = self.resizeable;

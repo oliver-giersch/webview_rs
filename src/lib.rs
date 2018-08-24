@@ -14,7 +14,7 @@ pub use builder::{Content, WebviewBuilder};
 pub use userdata::Userdata;
 
 use crate::error::WebviewError;
-use crate::ffi::LoopResult;
+use crate::ffi::{LoopResult, StringStorage};
 use webview_sys::webview;
 
 mod builder;
@@ -56,7 +56,7 @@ struct WebviewInner<T = ()> {
     webview:         webview,
     userdata:        Option<T>,
     external_invoke: Option<Box<dyn FnMut(&Webview<T>, &str)>>,
-    eval_buffer:     String,
+    storage:         StringStorage,
 }
 
 impl<T> Webview<T> {

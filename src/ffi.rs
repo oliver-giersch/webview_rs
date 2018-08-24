@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    ffi::CString,
     mem,
     os::raw::{c_char, c_int, c_void},
     result,
@@ -11,7 +12,7 @@ use webview_sys as sys;
 
 use crate::{callback, ffi::conversion::convert_to_cstring, userdata::Userdata, Webview};
 
-pub type Result = result::Result<(), CStrConversionError>;
+pub type Result<T> = result::Result<T, CStrConversionError>;
 
 type DispatchFn = sys::c_webview_dispatch_fn;
 type InvokeFn = sys::c_extern_callback_fn;
@@ -51,6 +52,30 @@ bitflags! {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct StringStorage {
+    pub title:       CString,
+    pub content:     CString,
+    /// The eval buffer needs to be a string so that push/clear operations can be used.
+    /// Nul terminator has to be manually added.
+    pub eval_buffer: String,
+}
+
+impl StringStorage {
+    pub fn new<'title, 'content>(
+        title: impl Into<Cow<'title, str>>,
+        content: impl Into<Cow<'content, str>>,
+        buffer_size: usize)
+    -> Result<Self>
+    {
+        Ok(Self {
+            title: convert_to_cstring(title)?.into_owned(),
+            content: convert_to_cstring(content)?.into_owned(),
+            eval_buffer: String::with_capacity(buffer_size),
+        })
+    }
+}
+
 #[inline]
 pub unsafe fn struct_webview_new() -> sys::webview {
     mem::uninitialized()
@@ -60,7 +85,7 @@ pub unsafe fn struct_webview_new() -> sys::webview {
 pub unsafe fn struct_webview_set_title<'s>(
     webview: &mut sys::webview,
     title: impl Into<Cow<'s, str>>,
-) -> Result {
+) -> Result<()> {
     //FIXME: Shit gets heap allocated! And dropped before build is called!
     let title_cstr = convert_to_cstring(title)?;
     let ptr = title_cstr.as_ptr();
@@ -72,7 +97,7 @@ pub unsafe fn struct_webview_set_title<'s>(
 pub unsafe fn struct_webview_set_content<'s>(
     webview: &mut sys::webview,
     content: impl Into<Cow<'s, str>>,
-) -> Result {
+) -> Result<()> {
     //FIXME: Shit gets heap allocated! And dropped before build is called!
     let content_cstr = convert_to_cstring(content)?;
     let ptr = content_cstr.as_ptr();
@@ -121,7 +146,7 @@ pub unsafe fn webview_simple<'title, 'content>(
     width: usize,
     height: usize,
     resizable: bool,
-) -> Result {
+) -> Result<()> {
     let title_cstr = convert_to_cstring(title)?;
     let content_cstr = convert_to_cstring(content)?;
 
@@ -171,8 +196,9 @@ pub unsafe fn webview_inject_css(webview: &mut sys::webview, buffer: &mut String
 pub unsafe fn webview_set_title<'s>(
     webview: &mut sys::webview,
     title: impl Into<Cow<'s, str>>,
-) -> Result {
-    //FIXME: Shit gets heap allocated! And dropped before build is called! Although: webview might take care on its own for this one
+) -> Result<()> {
+    //FIXME: Shit gets heap allocated! And dropped before build is called!
+    // Although: webview might take care on its own for this one
     let title_cstr = convert_to_cstring(title)?;
     sys::webview_set_title(webview as *mut _, title_cstr.as_ptr());
     Ok(())
@@ -196,7 +222,7 @@ pub unsafe fn webview_dialog(
     title: &str, //TODO: impl Into<Cow<str>>
     arg: &str,   //TODO: impl Into<Cow<str>>
     result_buffer: &mut [u8],
-) -> Result {
+) -> Result<()> {
     let title_cstr = convert_to_cstring(title)?;
     let arg_cstr = convert_to_cstring(arg)?;
     let (result_ptr, result_size) = (result_buffer.as_mut_ptr(), result_buffer.len());
@@ -234,7 +260,7 @@ pub unsafe fn webview_exit(webview: &mut sys::webview) {
 }
 
 #[inline]
-pub unsafe fn webview_print_log<'s>(log: impl Into<Cow<'s, str>>) -> Result {
+pub unsafe fn webview_print_log<'s>(log: impl Into<Cow<'s, str>>) -> Result<()> {
     let log_cstr = convert_to_cstring(log)?;
     sys::webview_print_log(log_cstr.as_ptr());
     Ok(())
