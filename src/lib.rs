@@ -83,12 +83,8 @@ impl<T> Webview<T> {
     //FIXME: Why does inlining cause a segfault?
     #[inline]
     pub fn run(&self, blocking: bool) {
-        use LoopResult::Exit;
-        loop {
-            if let Exit = unsafe { ffi::webview_loop(self.inner_webview(), blocking) } {
-                break;
-            }
-        }
+        use LoopResult::Continue;
+        while let Continue = unsafe { ffi::webview_loop(self.inner_webview(), blocking) } {}
     }
 
     #[inline]
@@ -145,9 +141,15 @@ impl<T> Webview<T> {
     }
 
     #[inline]
-    pub fn set_color(&self, color: impl Into<[u8; 3]>) {
+    pub fn set_color(&self, color: impl Into<[u8; 4]>) {
         let color = color.into();
-        unsafe { ffi::webview_set_color(self.inner_webview(), color[0], color[1], color[2]) };
+        unsafe { ffi::webview_set_color(
+            self.inner_webview(),
+            color[0],
+            color[1],
+            color[2],
+            color[3]
+        ) };
     }
 
     #[inline]
@@ -198,7 +200,7 @@ impl<T> Webview<T> {
 
     #[inline]
     fn storage(&self) -> &mut StringStorage {
-        unsafe { &mut (*self.inner.get()).storage as &mut StringStorage }
+        unsafe { &mut (*self.inner.get()).storage }
     }
 }
 
@@ -271,7 +273,7 @@ impl<T> MainHandle<T> {
     }
 
     #[inline]
-    pub fn set_color(&self, color: impl Into<[u8; 3]>) {
+    pub fn set_color(&self, color: impl Into<[u8; 4]>) {
         self.inner.set_color(color);
     }
 

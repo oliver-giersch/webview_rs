@@ -103,10 +103,6 @@ impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
 
     #[inline(never)]
     pub fn build(self) -> Result<Webview<T>, WebviewError> {
-        /*if let Some(error) = self.error {
-            return Err(error);
-        }*/
-
         if self.deactivate_thread_check {
             if let Some("main") = thread::current().name() {
             } else {

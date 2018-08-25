@@ -43,8 +43,8 @@ pub struct webview {
 
 /// webview_rs C wrapper functions
 extern "C" {
-    pub fn alloc_webview() -> *mut webview;
-    pub fn free_webview(webview: *mut webview);
+    //pub fn alloc_webview() -> *mut webview;
+    //pub fn free_webview(webview: *mut webview);
     pub fn struct_webview_size() -> usize;
     pub fn struct_webview_priv_size() -> usize;
     pub fn struct_webview_set_title(webview: *mut webview, title: *const c_char);
@@ -57,11 +57,12 @@ extern "C" {
         webview: *mut webview,
         external_invoke_cb: Option<c_extern_callback_fn>,
     );
-    pub fn struct_webview_set_userdata(webview: *mut webview, userdata: *mut c_void);
+    //pub fn struct_webview_set_userdata(webview: *mut webview, userdata: *mut c_void);
 }
 
 extern "C" {
     /// Creates simple webview with mandatory parameters only.
+    #[must_use]
     pub fn webview(
         title: *const c_char,
         url: *const c_char,
@@ -93,7 +94,13 @@ extern "C" {
     pub fn webview_set_fullscreen(webview: *mut webview, fullscreen: c_int) -> c_void;
 
     /// Set the color at runtime
-    pub fn webview_set_color(webview: *mut webview, red: u8, green: u8, blue: u8) -> c_void;
+    pub fn webview_set_color(
+        webview: *mut webview,
+        red: u8,
+        green: u8,
+        blue: u8,
+        alpha: u8
+    ) -> c_void;
 
     ///
     pub fn webview_dialog(

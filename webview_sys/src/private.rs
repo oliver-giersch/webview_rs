@@ -20,7 +20,7 @@ mod linux {
         webview: *mut GtkWidget,
         inspector_window: *mut GtkWidget,
         queue: *mut GAsyncQueue,
-        read: c_int,
+        ready: c_int,
         js_busy: c_int,
         should_exit: c_int,
     }

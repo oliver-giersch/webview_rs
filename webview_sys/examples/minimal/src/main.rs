@@ -8,7 +8,36 @@ static URL: &'static str = "https://en.m.wikipedia.org/wiki/Main_Page\0";
 
 fn main() {
     unsafe {
-        let mut webview = struct
+        let mut webview: sys::webview = mem::zeroed();
+        sys::struct_webview_set_title(
+            &mut webview as *mut _,
+            CStr::from_bytes_with_nul_unchecked(TITLE.as_bytes()).as_ptr()
+        );
+        sys::struct_webview_set_url(
+            &mut webview as *mut _,
+            CStr::from_bytes_with_nul_unchecked(URL.as_bytes()).as_ptr()
+        );
+        sys::struct_webview_set_width(
+            &mut webview as *mut _,
+            800
+        );
+        sys::struct_webview_set_height(
+            &mut webview as *mut _,
+            600
+        );
+        sys::struct_webview_set_resizable(
+            &mut webview as *mut _,
+            1
+        );
+
+        let result = sys::webview_init(&mut webview as *mut _);
+        assert_eq!(0, result);
+
+        loop {
+            if sys::webview_loop(&mut webview as *mut _, 1) == 1 {
+                break;
+            }
+        }
     }
 }
 

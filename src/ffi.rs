@@ -32,7 +32,7 @@ impl From<i32> for LoopResult {
     fn from(result: i32) -> Self {
         match result {
             0 => LoopResult::Continue,
-            _ => LoopResult::Exit,
+            _ => LoopResult::Exit
         }
     }
 }
@@ -186,7 +186,8 @@ pub unsafe fn webview_loop(webview: &mut sys::webview, blocking: bool) -> LoopRe
 #[inline]
 pub unsafe fn webview_eval(webview: &mut sys::webview, buffer: &[u8]) -> Result<(), CStrConversionError> {
     let js_cstr = CStr::from_bytes_with_nul(buffer)?;
-    sys::webview_eval(webview as *mut _, js_cstr.as_ptr());
+    let result = sys::webview_eval(webview as *mut _, js_cstr.as_ptr());
+    assert_eq!(0, result);
     Ok(())
 }
 
@@ -194,7 +195,8 @@ pub unsafe fn webview_eval(webview: &mut sys::webview, buffer: &[u8]) -> Result<
 #[inline]
 pub unsafe fn webview_inject_css(webview: &mut sys::webview, buffer: &[u8]) -> Result<(), CStrConversionError> {
     let css_cstr = CStr::from_bytes_with_nul(buffer)?;
-    sys::webview_eval(webview as *mut _, css_cstr.as_ptr());
+    let result = sys::webview_eval(webview as *mut _, css_cstr.as_ptr());
+    assert_eq!(0, result);
     Ok(())
 }
 
@@ -216,8 +218,14 @@ pub unsafe fn webview_set_fullscreen(webview: &mut sys::webview, fullscreen: boo
 }
 
 #[inline]
-pub unsafe fn webview_set_color(webview: &mut sys::webview, red: u8, green: u8, blue: u8) {
-    sys::webview_set_color(webview as *mut _, red, green, blue);
+pub unsafe fn webview_set_color(
+    webview: &mut sys::webview,
+    red: u8,
+    green: u8,
+    blue: u8,
+    alpha: u8
+) {
+    sys::webview_set_color(webview as *mut _, red, green, blue, alpha);
 }
 
 #[inline]
