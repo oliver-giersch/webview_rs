@@ -1,0 +1,1 @@
+/home/oliver/CLionProjects/webview_rs/webview_sys/examples/minimal/target/release/minimal: /home/oliver/CLionProjects/webview_rs/webview_sys/build.rs /home/oliver/CLionProjects/webview_rs/webview_sys/examples/minimal/src/main.rs /home/oliver/CLionProjects/webview_rs/webview_sys/src/lib.rs /home/oliver/CLionProjects/webview_rs/webview_sys/src/private.rs

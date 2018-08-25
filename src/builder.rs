@@ -10,7 +10,7 @@ use crate::Webview;
 
 use webview_sys::runtime_size_check;
 
-pub struct WebviewBuilder<'title, 'content, T = ()> {
+pub struct WebviewBuilder<'title, 'content, T> {
     title:                   Option<Cow<'title, str>>,
     content:                 Option<Cow<'content, str>>,
     width:                   Option<usize>,
@@ -21,7 +21,7 @@ pub struct WebviewBuilder<'title, 'content, T = ()> {
     userdata:                Option<T>,
     deactivate_thread_check: bool,
     buffer_size:             usize,
-    error:                   Option<WebviewError>,
+    //error:                   Option<WebviewError>,
 }
 
 impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
@@ -103,9 +103,9 @@ impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
 
     #[inline(never)]
     pub fn build(self) -> Result<Webview<T>, WebviewError> {
-        if let Some(error) = self.error {
+        /*if let Some(error) = self.error {
             return Err(error);
-        }
+        }*/
 
         if self.deactivate_thread_check {
             if let Some("main") = thread::current().name() {
@@ -150,7 +150,9 @@ impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
                 ffi::struct_webview_set_external_invoke_cb::<T>(webview);
             }
 
-            ffi::webview_init(webview);
+            let init_result = ffi::webview_init(webview);
+            //TODO: Proper error handling
+            assert!(init_result);
         }
 
         Ok(built)
@@ -196,7 +198,7 @@ impl<'title, 'content, T> Default for WebviewBuilder<'title, 'content, T> {
             userdata:                None,
             deactivate_thread_check: false,
             buffer_size:             0,
-            error:                   None,
+            //error:                   None,
         }
     }
 }

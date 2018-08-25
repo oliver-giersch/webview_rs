@@ -3,16 +3,12 @@ use std::{
     ffi::{CStr, CString},
     mem,
     os::raw::{c_char, c_int, c_void},
-    result,
 };
 
 pub use crate::ffi::conversion::*;
 
 use webview_sys as sys;
-
-use crate::{callback, userdata::Userdata, Webview};
-
-pub type Result<T> = result::Result<T, CStrConversionError>;
+use crate::{callback, Webview};
 
 type DispatchFn = sys::c_webview_dispatch_fn;
 type InvokeFn = sys::c_extern_callback_fn;
@@ -31,7 +27,7 @@ pub enum LoopResult {
     Exit,
 }
 
-impl From<c_int> for LoopResult {
+impl From<i32> for LoopResult {
     #[inline]
     fn from(result: i32) -> Self {
         match result {
@@ -89,7 +85,7 @@ impl StringStorage {
 
 #[inline]
 pub unsafe fn struct_webview_new() -> sys::webview {
-    mem::uninitialized()
+    mem::zeroed()
 }
 
 #[inline]
@@ -140,10 +136,10 @@ pub unsafe fn struct_webview_set_external_invoke_cb<T>(webview: &mut sys::webvie
     );
 }
 
-#[inline]
+/*#[inline]
 pub unsafe fn struct_webview_set_userdata<T: Userdata>(webview: &mut sys::webview, userdata: &T) {
     sys::struct_webview_set_userdata(webview as *mut _, userdata as *const _ as *mut c_void);
-}
+}*/
 
 ///
 #[inline]
@@ -153,7 +149,7 @@ pub unsafe fn webview_simple<'title, 'content>(
     width: usize,
     height: usize,
     resizable: bool,
-) -> Result<()> {
+) -> Result<(), CStrConversionError> {
     let title_cstr = convert_to_cstring(title)?;
     let content_cstr = convert_to_cstring(content)?;
 
@@ -167,31 +163,36 @@ pub unsafe fn webview_simple<'title, 'content>(
     Ok(())
 }
 
-/// TODO: Return result
+// TODO: Return result instead of bool
+#[must_use]
 #[inline]
-pub unsafe fn webview_init(webview: &mut sys::webview) {
-    sys::webview_init(webview as *mut _);
+pub unsafe fn webview_init(webview: &mut sys::webview) -> bool {
+    let result = sys::webview_init(webview as *mut _);
+    debug_assert_eq!(0, result);
+    result == 0
 }
 
 /// Executes the main loop for one iteration.
 /// The result indicates whether another iterations should be run or the
 /// webview has been terminated.
+#[must_use]
 #[inline]
 pub unsafe fn webview_loop(webview: &mut sys::webview, blocking: bool) -> LoopResult {
-    LoopResult::from(sys::webview_loop(webview as *mut _, blocking as c_int))
+    let result = sys::webview_loop(webview as *mut _, blocking as c_int);
+    LoopResult::from(result)
 }
 
-/// TODO: Return Result
+// TODO: Handle -1 return value
 #[inline]
-pub unsafe fn webview_eval(webview: &mut sys::webview, buffer: &[u8]) -> Result<()> {
+pub unsafe fn webview_eval(webview: &mut sys::webview, buffer: &[u8]) -> Result<(), CStrConversionError> {
     let js_cstr = CStr::from_bytes_with_nul(buffer)?;
     sys::webview_eval(webview as *mut _, js_cstr.as_ptr());
     Ok(())
 }
 
-/// TODO: Return Result
+// TODO: Handle -1 return value
 #[inline]
-pub unsafe fn webview_inject_css(webview: &mut sys::webview, buffer: &[u8]) -> Result<()> {
+pub unsafe fn webview_inject_css(webview: &mut sys::webview, buffer: &[u8]) -> Result<(), CStrConversionError> {
     let css_cstr = CStr::from_bytes_with_nul(buffer)?;
     sys::webview_eval(webview as *mut _, css_cstr.as_ptr());
     Ok(())
@@ -201,7 +202,7 @@ pub unsafe fn webview_inject_css(webview: &mut sys::webview, buffer: &[u8]) -> R
 pub unsafe fn webview_set_title<'s>(
     webview: &mut sys::webview,
     title: impl Into<Cow<'s, str>>,
-) -> Result<()> {
+) -> Result<(), CStrConversionError> {
     //FIXME: Shit gets heap allocated! And dropped before build is called!
     // Although: webview might take care on its own for this one
     let title_cstr = convert_to_cstring(title)?;
@@ -227,7 +228,7 @@ pub unsafe fn webview_dialog(
     title: &str, //TODO: impl Into<Cow<str>>
     arg: &str,   //TODO: impl Into<Cow<str>>
     result_buffer: &mut [u8],
-) -> Result<()> {
+) -> Result<(), CStrConversionError> {
     let title_cstr = convert_to_cstring(title)?;
     let arg_cstr = convert_to_cstring(arg)?;
     let (result_ptr, result_size) = (result_buffer.as_mut_ptr(), result_buffer.len());
@@ -246,7 +247,7 @@ pub unsafe fn webview_dialog(
 
 #[inline]
 pub unsafe fn webview_dispatch<T>(webview: &mut sys::webview, func: &dyn FnMut(&Webview<T>)) {
-    let callback = &func as *const _ as *mut c_void;
+    let callback: *mut c_void = mem::transmute(&func);
     sys::webview_dispatch(
         webview as *mut _,
         Some(callback::dispatch_handler::<T> as DispatchFn),
@@ -265,7 +266,7 @@ pub unsafe fn webview_exit(webview: &mut sys::webview) {
 }
 
 #[inline]
-pub unsafe fn webview_print_log<'s>(log: impl Into<Cow<'s, str>>) -> Result<()> {
+pub unsafe fn webview_print_log<'s>(log: impl Into<Cow<'s, str>>) -> Result<(), CStrConversionError> {
     let log_cstr = convert_to_cstring(log)?;
     sys::webview_print_log(log_cstr.as_ptr());
     Ok(())

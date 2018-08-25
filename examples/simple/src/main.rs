@@ -10,8 +10,9 @@ fn main() {
         .set_content(Content::Url("https://en.wikipedia.org/wiki/Main_Page"))
         .set_width(800)
         .set_height(600)
+        .set_debug(true)
         .build()
         .unwrap();
 
-    webview.run();
+    webview.run(true);
 }

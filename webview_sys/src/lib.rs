@@ -71,15 +71,19 @@ extern "C" {
     ) -> c_int;
 
     /// Initializes the webview struct (returns -1 if initialization fails)
+    #[must_use]
     pub fn webview_init(webview: *mut webview) -> c_int;
 
     /// Run the webview main loop
+    #[must_use]
     pub fn webview_loop(webview: *mut webview, blocking: c_int) -> c_int;
 
     /// Inject (evaluate) JS code
+    #[must_use]
     pub fn webview_eval(webview: *mut webview, js: *const c_char) -> c_int;
 
     /// Inject css code
+    #[must_use]
     pub fn webview_inject_css(webview: *mut webview, css: *const c_char) -> c_int;
 
     /// Set the title at runtime

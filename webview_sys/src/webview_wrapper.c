@@ -3,14 +3,14 @@
 #include <stddef.h>
 #include "webview.h"
 
-struct webview* alloc_webview(void) {
+/*struct webview* alloc_webview(void) {
     struct webview* webview = calloc(1, sizeof(struct webview));
     return webview;
 }
 
 void free_webview(struct webview* webview) {
     free(webview);
-}
+}*/
 
 size_t struct_webview_size() {
     return sizeof(struct webview);
@@ -48,6 +48,6 @@ void struct_webview_set_external_invoke_cb(struct webview* webview, webview_exte
     webview->external_invoke_cb = external_invoke_cb;
 }
 
-void struct_webview_set_userdata(struct webview* webview, void* userdata) {
+/*void struct_webview_set_userdata(struct webview* webview, void* userdata) {
     webview->userdata = userdata;
-}
+}*/

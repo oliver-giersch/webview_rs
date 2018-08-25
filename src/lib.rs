@@ -38,7 +38,8 @@ mod userdata;
 ///
 /// This `ThreadHandle` can be cloned and is only able to call dispatch
 /// closures, which are called in a thread-safe way.
-pub struct Webview<T = ()> {
+#[repr(C)]
+pub struct Webview<T> {
     inner: UnsafeCell<Inner<T>>,
 }
 
@@ -54,7 +55,7 @@ impl<T> From<Inner<T>> for Webview<T> {
 type BoxedExternalInvoke<T> = Box<dyn FnMut(&Webview<T>, &str)>;
 
 #[repr(C)]
-struct Inner<T = ()> {
+struct Inner<T> {
     webview:         webview,
     userdata:        Option<T>,
     external_invoke: Option<BoxedExternalInvoke<T>>,
@@ -79,23 +80,15 @@ impl<T> Webview<T> {
         }
     }
 
+    //FIXME: Why does inlining cause a segfault?
     #[inline]
-    pub fn run(&self) {
+    pub fn run(&self, blocking: bool) {
+        use LoopResult::Exit;
         loop {
-            unsafe {
-                if let LoopResult::Exit = ffi::webview_loop(self.inner_webview(), true) {
-                    //TODO: customize blocking
-                    break;
-                }
+            if let Exit = unsafe { ffi::webview_loop(self.inner_webview(), blocking) } {
+                break;
             }
         }
-    }
-
-    #[inline]
-    pub fn run_with_init(&self, init: impl FnOnce()) {
-        init();
-
-        self.run();
     }
 
     #[inline]
@@ -248,13 +241,8 @@ impl<T> MainHandle<T> {
     }
 
     #[inline]
-    pub fn run(&self) {
-        self.inner.run();
-    }
-
-    #[inline]
-    pub fn run_with_init(&self, init: impl FnOnce()) {
-        self.inner.run_with_init(init);
+    pub fn run(&self, blocking: bool) {
+        self.inner.run(blocking);
     }
 
     #[inline]
