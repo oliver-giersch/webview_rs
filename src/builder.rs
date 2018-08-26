@@ -1,78 +1,45 @@
 use std::borrow::Cow;
-use std::marker::PhantomData;
-//use std::path::Path;
+use std::cell::UnsafeCell;
+use std::mem;
+use std::sync::Arc;
 use std::thread;
 
+use webview_sys as sys;
+use crate::{ExternalInvokeFn, Webview, WebviewHandle};
+use crate::conversion::convert_to_cstring;
 use crate::error::WebviewError;
-use crate::ffi::{self, convert_to_cstring, StringStorage};
-use crate::userdata::Userdata;
-use crate::Webview;
+use crate::ffi;
+use crate::storage::StringStorage;
 
-use webview_sys::runtime_size_check;
-
-pub struct WebviewBuilder<'title, 'content, T> {
-    title:                   Option<Cow<'title, str>>,
-    content:                 Option<Cow<'content, str>>,
-    width:                   Option<usize>,
-    height:                  Option<usize>,
-    resizeable:              bool,
-    debug:                   bool,
-    external_invoke:         Option<Box<dyn FnMut(&Webview<T>, &str)>>,
-    userdata:                Option<T>,
-    deactivate_thread_check: bool,
-    buffer_size:             usize,
-    //error:                   Option<WebviewError>,
+pub struct Builder<'title, 'content, T> {
+    title: Option<Cow<'title, str>>,
+    content: Option<Cow<'content, str>>,
+    size: Option<(usize, usize)>,
+    resizable: bool,
+    debug: bool,
+    external_invoke: Option<ExternalInvokeFn<T>>,
+    userdata: Option<T>,
+    thread_check: bool,
+    buffer_size: usize,
 }
 
-impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
+impl<'title, 'content, T> Builder<'title, 'content, T> {
     #[inline]
     pub fn new() -> Self {
-        runtime_size_check();
+        sys::runtime_size_check();
         Default::default()
     }
 
     #[inline]
-    pub fn set_title(mut self, title: impl Into<Cow<'title, str>>) -> Self {
-        self.title = Some(title.into());
-        self
-    }
-
-    #[inline]
-    pub fn set_content_url(self, url: impl Into<Cow<'content, str>>) -> Self {
-        self.set_content(Content::Url(url))
-    }
-
-    #[inline]
-    pub fn set_content_html(self, html: impl Into<Cow<'content, str>>) -> Self {
-        self.set_content(Content::Html(html))
-    }
-
-    #[inline]
-    pub fn set_content<C>(mut self, content: impl Into<Content<'content, C>>) -> Self
-    where
-        C: Into<Cow<'content, str>>,
-    {
-        self.content = Some(content.into().into());
-        self
-    }
-
-    #[inline]
-    pub fn set_width(mut self, width: usize) -> Self {
-        assert!(width > 0);
-        self.width = Some(width);
-        self
-    }
-
-    #[inline]
-    pub fn set_height(mut self, height: usize) -> Self {
-        assert!(height > 0);
-        self.height = Some(height);
+    pub fn set_size(mut self, width: usize, height: usize) -> Self {
+        assert!(width > 0 && height > 0);
+        self.size = Some((width, height));
         self
     }
 
     #[inline]
     pub fn set_resizable(mut self, resizable: bool) -> Self {
-        self.resizeable = resizable;
+        self.resizable = resizable;
         self
     }
 
@@ -83,7 +50,6 @@ impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
     }
 
     #[inline]
-    //TODO: Find out why 'static
     pub fn set_external_invoke(mut self, func: impl FnMut(&Webview<T>, &str) + 'static) -> Self {
         self.external_invoke = Some(Box::new(func));
         self
@@ -97,196 +63,58 @@ impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
 
     #[inline]
     pub fn deactivate_thread_check(mut self) -> Self {
-        self.deactivate_thread_check = true;
+        self.thread_check = false;
         self
     }
 
     #[inline(never)]
-    pub fn build(self) -> Result<Webview<T>, WebviewError> {
-        if self.deactivate_thread_check {
+    pub fn build(self) -> Result<WebviewHandle<T>, WebviewError> {
+        if self.thread_check {
             if let Some("main") = thread::current().name() {
             } else {
                 return Err(WebviewError::InvalidThread);
             }
         }
 
-        let title = self.title.ok_or(WebviewError::MissingArgs)?;
-        let content = self.content.ok_or(WebviewError::MissingArgs)?;
-        let width = self.width.unwrap_or(800);
-        let height = self.height.unwrap_or(600);
-        let resizable = self.resizeable;
+        let title = self.title.ok_or(WebviewError::Build)?;
+        let content = self.content.ok_or(WebviewError::Build)?;
+        let (width, height) = self.size.unwrap_or((800, 600));
         let debug = self.debug;
-        let has_external_invoke = self.external_invoke.is_some();
 
-        let webview = unsafe { ffi::struct_webview_new() };
+        let inner = unsafe {
+            let storage = StringStorage::new(
+                convert_to_cstring(title)?,
+                convert_to_cstring(content)?,
+                self.buffer_size,
+            );
 
-        let storage = StringStorage::new(
-            convert_to_cstring(title)?,
-            convert_to_cstring(content)?,
-            self.buffer_size
-        );
-        let built = Webview::new(
-            webview,
-            self.userdata,
-            self.external_invoke,
-            storage
-        );
+            let mut webview: sys::webview = mem::zeroed();
+            ffi::struct_webview_set_title(&mut webview, &storage.title);
+            ffi::struct_webview_set_content(&mut webview, &storage.content);
+            ffi::struct_webview_set_width(&mut webview, width);
+            ffi::struct_webview_set_height(&mut webview, height);
+            ffi::struct_webview_set_resizable(&mut webview, self.resizable);
+            ffi::struct_webview_set_debug(&mut webview, self.debug);
 
-        unsafe {
-            let webview = built.inner_webview();
-
-            ffi::struct_webview_set_title(webview, &built.storage().title);
-            ffi::struct_webview_set_content(webview, &built.storage().content);
-            ffi::struct_webview_set_width(webview, width);
-            ffi::struct_webview_set_height(webview, height);
-            ffi::struct_webview_set_resizable(webview, resizable);
-            ffi::struct_webview_set_debug(webview, debug);
-
-            if has_external_invoke {
-                ffi::struct_webview_set_external_invoke_cb::<T>(webview);
+            if self.external_invoke.is_some() {
+                ffi::struct_webview_set_external_invoke_cb::<T>(&mut webview);
             }
 
-            let init_result = ffi::webview_init(webview);
-            //TODO: Proper error handling
-            assert!(init_result);
+            Webview {
+                webview,
+                storage,
+                external_invoke: self.external_invoke,
+                userdata: self.userdata,
+            }
+        };
+
+        let built = WebviewHandle::new(inner);
+
+        unsafe {
+            let inner = built.webview();
+            ffi::webview_init(&mut inner.webview)?;
         }
 
         Ok(built)
     }
-}
-
-impl<'title, 'content, T> WebviewBuilder<'title, 'content, T>
-where
-    T: Userdata,
-{
-    #[inline]
-    pub fn set_userdata(mut self, userdata: T) -> Self {
-        self.userdata = Some(userdata);
-        self
-    }
-}
-
-//TODO Battle borrowck
-/*impl<'title, 'content, T> WebviewBuilder<'title, 'content, T> {
-    #[inline]
-    pub fn set_content_file<C>(mut self, path: C) -> Self
-    where
-        C: Into<Cow<'content, Path>>
-    {
-        let path = path.into();
-        let string = path.to_string_lossy();
-        self.content = Some(string);
-        self
-    }
-}*/
-
-impl<'title, 'content, T> Default for WebviewBuilder<'title, 'content, T> {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            title:                   None,
-            content:                 None,
-            width:                   None,
-            height:                  None,
-            resizeable:              true,
-            debug:                   false,
-            external_invoke:         None,
-            userdata:                None,
-            deactivate_thread_check: false,
-            buffer_size:             0,
-            //error:                   None,
-        }
-    }
-}
-
-pub enum Content<'content, C>
-where
-    C: Into<Cow<'content, str>>,
-{
-    Url(C),
-    File(C),
-    Html(C),
-    __Hidden(PhantomData<&'content str>),
-}
-
-impl<'content, C> Into<Cow<'content, str>> for Content<'content, C>
-where
-    C: Into<Cow<'content, str>>,
-{
-    #[inline]
-    fn into(self) -> Cow<'content, str> {
-        match self {
-            Content::Url(content) => into_url(content),
-            Content::File(content) => into_file_path(content),
-            Content::Html(content) => into_html(content),
-            Content::__Hidden(_) => panic!("enum variant for internal use only"),
-        }
-    }
-}
-
-fn into_url<'s>(content: impl Into<Cow<'s, str>>) -> Cow<'s, str> {
-    let content = content.into();
-    match content {
-        Cow::Borrowed(string) => {
-            if string_starts_with_any(string, &["http://", "https://"]) {
-                Cow::from(string)
-            } else {
-                Cow::from(format!("http://{}", string))
-            }
-        }
-        Cow::Owned(mut string) => {
-            if string_starts_with_any(&string, &["http://", "https://"]) {
-                Cow::from(string)
-            } else {
-                string.insert_str(0, "http://");
-                Cow::from(string)
-            }
-        }
-    }
-}
-
-fn into_file_path<'s>(content: impl Into<Cow<'s, str>>) -> Cow<'s, str> {
-    let content = content.into();
-    match content {
-        Cow::Borrowed(string) => {
-            if string.starts_with("file:///") {
-                Cow::from(string)
-            } else {
-                Cow::from(format!("file:///{}", string))
-            }
-        }
-        Cow::Owned(mut string) => {
-            if string.starts_with("file:///") {
-                Cow::from(string)
-            } else {
-                string.insert_str(0, "file:///");
-                Cow::from(string)
-            }
-        }
-    }
-}
-
-fn into_html<'s>(content: impl Into<Cow<'s, str>>) -> Cow<'s, str> {
-    let content = content.into();
-    match content {
-        Cow::Borrowed(string) => {
-            if string.starts_with("data:text/html,") {
-                Cow::from(string)
-            } else {
-                Cow::from(format!("data:text/html,{}", string))
-            }
-        }
-        Cow::Owned(mut string) => {
-            if string.starts_with("data:text/html,") {
-                Cow::from(string)
-            } else {
-                string.insert_str(0, "data:text/html,");
-                Cow::from(string)
-            }
-        }
-    }
-}
-
-fn string_starts_with_any(string: &str, any: &[&str]) -> bool {
-    any.iter().any(|&contain| string.starts_with(contain))
 }

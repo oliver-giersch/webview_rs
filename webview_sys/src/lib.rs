@@ -14,9 +14,19 @@ pub fn runtime_size_check() {
             "size of `webview` does not match C library."
         );
         assert_eq!(
+            mem::align_of::<webview>(),
+            struct_webview_alignment(),
+            "alignment of `webview` does not match C library."
+        );
+        assert_eq!(
             mem::size_of::<webview_private>(),
             struct_webview_priv_size(),
             "size of `webview_private` does not match C library."
+        );
+        assert_eq!(
+            mem::align_of::<webview_private>(),
+            struct_webview_priv_alignment(),
+            "alignment of `webview_private` does not match C library."
         );
     }
 }
@@ -25,7 +35,7 @@ pub fn runtime_size_check() {
 pub type c_extern_callback_fn = extern "system" fn(*mut webview, *const c_char);
 
 #[allow(non_camel_case_types)]
-pub type c_webview_dispatch_fn = extern "system" fn(*mut webview, arg: *mut c_void);
+pub type c_webview_dispatch_fn = extern "system" fn(*mut webview, *mut c_void);
 
 #[allow(non_camel_case_types)]
 #[repr(C)]
@@ -36,7 +46,7 @@ pub struct webview {
     pub(crate) height: c_int,
     pub(crate) resizable: c_int,
     pub(crate) debug: c_int,
-    pub(crate) external_invoke_cb: c_extern_callback_fn,
+    pub(crate) external_invoke_cb: Option<c_extern_callback_fn>,
     pub(crate) private: webview_private,
     pub(crate) userdata: *mut c_void,
 }
@@ -46,7 +56,9 @@ extern "C" {
     //pub fn alloc_webview() -> *mut webview;
     //pub fn free_webview(webview: *mut webview);
     pub fn struct_webview_size() -> usize;
+    pub fn struct_webview_alignment() -> usize;
     pub fn struct_webview_priv_size() -> usize;
+    pub fn struct_webview_priv_alignment() -> usize;
     pub fn struct_webview_set_title(webview: *mut webview, title: *const c_char);
     pub fn struct_webview_set_url(webview: *mut webview, url: *const c_char);
     pub fn struct_webview_set_width(webview: *mut webview, width: c_int);
@@ -143,10 +155,15 @@ mod test {
     fn struct_sizes() {
         unsafe {
             assert_eq!(mem::size_of::<webview>(), struct_webview_size());
-            assert_eq!(
-                mem::size_of::<webview_private>(),
-                struct_webview_priv_size()
-            );
+            assert_eq!(mem::size_of::<webview_private>(), struct_webview_priv_size());
+        }
+    }
+
+    #[test]
+    fn struct_alignments() {
+        unsafe {
+            assert_eq!(mem::align_of::<webview>(), struct_webview_alignment());
+            assert_eq!(mem::align_of::<webview_private>(), struct_webview_priv_alignment());
         }
     }
 
@@ -156,18 +173,19 @@ mod test {
             let mut webview = mem::uninitialized();
             struct_webview_set_title(
                 &mut webview as *mut _,
-                "test".as_bytes().as_ptr() as *const c_char,
+                "Minimal webview example\0".as_bytes().as_ptr() as *const c_char,
             );
             struct_webview_set_url(
                 &mut webview as *mut _,
-                "https://en.wikipedia.org/wiki/Main_Page"
+                "https://en.wikipedia.org/wiki/Main_Page\0"
                     .as_bytes()
                     .as_ptr() as *const c_char,
             );
             struct_webview_set_width(&mut webview as *mut _, 800);
             struct_webview_set_height(&mut webview as *mut _, 60);
 
-            webview_init(&mut webview as *mut _);
+            let result = webview_init(&mut webview as *mut _);
+            assert_eq!(0, result);
             webview_exit(&mut webview as *mut _);
         }
     }

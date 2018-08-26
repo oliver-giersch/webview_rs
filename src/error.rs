@@ -1,12 +1,14 @@
 use std::{error, fmt};
 
 use self::WebviewError::*;
-use crate::ffi::CStrConversionError;
+use crate::conversion::CStrConversionError;
+use crate::ffi::LibraryError;
 
 #[derive(Debug)]
 pub enum WebviewError {
-    MissingArgs,
-    Internal(i32),
+    Build,
+    DispatchFailed,
+    Internal(LibraryError),
     InvalidPath,
     InvalidStr(CStrConversionError),
     InvalidThread,
@@ -17,16 +19,24 @@ impl fmt::Display for WebviewError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            MissingArgs   => write!(f, "There were missing arguments required to create a Webview"),
-            Internal(val) => write!(f, "{}", val),
-            InvalidPath   => write!(f, "There was an invalid file path set for the Webview's initial content"),
-            InvalidStr(_) => write!(f, "There was an attempt to send an invalid C string to the webview library"),
-            InvalidThread => write!(f, "There was an attempt to create the Webview on a thread other than the main thread.\nIn order to disable this check, you can call `WebviewBuilder::disable_thread_check`"),
+            Build => unimplemented!(),
+            DispatchFailed => unimplemented!(),
+            Internal(err) => unimplemented!(),
+            InvalidPath => unimplemented!(),
+            InvalidStr(err) => unimplemented!(),
+            InvalidThread => unimplemented!(),
         }
     }
 }
 
 impl error::Error for WebviewError {}
+
+impl From<LibraryError> for WebviewError {
+    #[inline]
+    fn from(error: LibraryError) -> Self {
+        WebviewError::Internal(error)
+    }
+}
 
 impl From<CStrConversionError> for WebviewError {
     #[inline]

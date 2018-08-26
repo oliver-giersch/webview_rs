@@ -1,5 +1,6 @@
 #define WEBVIEW_IMPLEMENTATION
 
+#include <stdalign.h>
 #include <stddef.h>
 #include "webview.h"
 
@@ -16,8 +17,16 @@ size_t struct_webview_size() {
     return sizeof(struct webview);
 }
 
+size_t struct_webview_alignment() {
+    return alignof(struct webview);
+}
+
 size_t struct_webview_priv_size() {
     return sizeof(struct webview_priv);
+}
+
+size_t struct_webview_priv_alignment() {
+    return alignof(struct webview_priv);
 }
 
 void struct_webview_set_title(struct webview* webview, const char* title) {
