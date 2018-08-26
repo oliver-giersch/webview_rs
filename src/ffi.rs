@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::mem;
 use std::os::raw::{c_char, c_int, c_void};
 
@@ -161,25 +161,25 @@ pub unsafe fn webview_loop(webview: &mut sys::webview, blocking: bool) -> LoopRe
 
 #[must_use]
 #[inline]
-pub unsafe fn webview_eval(webview: &mut sys::webview, buffer: &[u8]) -> Result<(), LibraryError> {
+pub unsafe fn webview_eval(webview: &mut sys::webview, buffer: &[u8]) -> Result<(), WebviewError> {
     let js_cstr = CStr::from_bytes_with_nul(buffer)?;
     let result = sys::webview_eval(webview as *mut _, js_cstr.as_ptr());
 
     match result {
         0 => Ok(()),
-        c => Err(LibraryError::Eval(c))
+        c => Err(WebviewError::from(LibraryError::Eval(c)))
     }
 }
 
 #[must_use]
 #[inline]
-pub unsafe fn webview_inject_css(webview: &mut sys::webview, buffer: &[u8]) -> Result<(), LibraryError> {
+pub unsafe fn webview_inject_css(webview: &mut sys::webview, buffer: &[u8]) -> Result<(), WebviewError> {
     let css_cstr = CStr::from_bytes_with_nul(buffer)?;
     let result = sys::webview_inject_css(webview as *mut _, css_cstr.as_ptr());
 
     match result {
         0 => Ok(()),
-        c => Err(LibraryError::Eval(c))
+        c => Err(WebviewError::from(LibraryError::Eval(c)))
     }
 }
 

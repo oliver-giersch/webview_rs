@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum CStrConversionError {
     FromBytesWithNul(FromBytesWithNulError),
     Nul(NulError),

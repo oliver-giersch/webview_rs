@@ -1,5 +1,4 @@
 use std::ffi::CStr;
-use std::mem;
 use std::os::raw::{c_char, c_void};
 
 use webview_sys as sys;

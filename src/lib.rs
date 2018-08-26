@@ -6,7 +6,6 @@ extern crate webview_sys;
 
 use std::borrow::Cow;
 use std::cell::UnsafeCell;
-use std::marker::PhantomData;
 use std::sync::{Arc, Weak};
 
 use webview_sys as sys;
@@ -137,8 +136,8 @@ impl<T> WebviewHandle<T> {
     #[inline]
     pub fn run(&self, blocking: bool) {
         use ffi::LoopResult::Continue;
-        let webview = unsafe { &mut *self.inner.get() };
-        while let Continue = unsafe { ffi::webview_loop(webview, blocking) } {}
+        let inner = unsafe { &mut *self.inner.get() };
+        while let Continue = unsafe { ffi::webview_loop(&mut inner.webview, blocking) } {}
     }
 
     #[inline]

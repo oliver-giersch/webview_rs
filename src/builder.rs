@@ -1,7 +1,5 @@
 use std::borrow::Cow;
-use std::cell::UnsafeCell;
 use std::mem;
-use std::sync::Arc;
 use std::thread;
 
 use webview_sys as sys;
@@ -50,8 +48,8 @@ impl<'title, 'content, T> Builder<'title, 'content, T> {
     }
 
     #[inline]
-    pub fn set_external_invoke(mut self, func: impl FnMut(&Webview<T>, &str) + 'static) -> Self {
-        self.external_invoke = Some(Box::new(func));
+    pub fn set_external_invoke(mut self, func: impl FnMut(&Webview<T>, &str)) -> Self {
+        self.external_invoke = Some(Box::new(&func));
         self
     }
 
@@ -116,5 +114,22 @@ impl<'title, 'content, T> Builder<'title, 'content, T> {
         }
 
         Ok(built)
+    }
+}
+
+impl<'title, 'content, T> Default for Builder<'title, 'content, T> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            title: None,
+            content: None,
+            size: None,
+            resizable: true,
+            debug: false,
+            external_invoke: None,
+            userdata: None,
+            thread_check: true,
+            buffer_size: 0,
+        }
     }
 }
