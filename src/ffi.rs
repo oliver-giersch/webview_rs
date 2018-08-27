@@ -121,7 +121,7 @@ pub unsafe fn struct_webview_set_debug(webview: &mut sys::webview, debug: bool) 
 pub unsafe fn struct_webview_set_external_invoke_cb<'invoke, T>(webview: &mut sys::webview) {
     sys::struct_webview_set_external_invoke_cb(
         webview as *mut _,
-        Some(callback::invoke_handler::<'invoke, T> as InvokeFn),
+        Some(callback::invoke_handler::<T> as InvokeFn),
     );
 }
 
@@ -205,7 +205,7 @@ pub unsafe fn webview_dispatch<'invoke, T>(webview: &mut sys::webview, func: &dy
     let callback: *mut c_void = mem::transmute(&func);
     sys::webview_dispatch(
         webview as *mut _,
-        Some(callback::dispatch_handler::<'invoke, T> as DispatchFn),
+        Some(callback::dispatch_handler::<T> as DispatchFn),
         callback
     );
 }
