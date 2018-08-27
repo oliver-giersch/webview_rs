@@ -3,11 +3,11 @@ use std::ffi::CStr;
 use std::mem;
 use std::os::raw::{c_char, c_int, c_void};
 
+use webview_sys as sys;
 use crate::callback;
-use crate::conversion::{bytes_to_cstr, convert_to_cstring, CStrConversionError};
+use crate::conversion::convert_to_cstring;
 use crate::error::WebviewError;
 use crate::Webview;
-use webview_sys as sys;
 
 type DispatchFn = sys::c_webview_dispatch_fn;
 type InvokeFn = sys::c_extern_callback_fn;
@@ -40,20 +40,6 @@ impl From<i32> for LoopResult {
 pub enum LibraryError {
     Init(i32),
     Eval(i32),
-}
-
-#[derive(Debug, PartialOrd, PartialEq)]
-pub enum FFIError {
-    Conversion(CStrConversionError),
-    Init(i32),
-    Eval(i32),
-}
-
-impl From<CStrConversionError> for FFIError {
-    #[inline]
-    fn from(error: CStrConversionError) -> Self {
-        FFIError::Conversion(error)
-    }
 }
 
 bitflags! {
@@ -177,7 +163,7 @@ pub unsafe fn webview_loop(webview: &mut sys::webview, blocking: bool) -> LoopRe
 #[must_use]
 #[inline]
 pub unsafe fn webview_eval(webview: &mut sys::webview, buffer: &[u8]) -> Result<(), WebviewError> {
-    let js_cstr = bytes_to_cstr(buffer)?; //TODO: Find better way
+    let js_cstr = CStr::from_bytes_with_nul(buffer)?;
     let result = sys::webview_eval(webview as *mut _, js_cstr.as_ptr());
 
     match result {
@@ -192,7 +178,7 @@ pub unsafe fn webview_inject_css(
     webview: &mut sys::webview,
     buffer: &[u8],
 ) -> Result<(), WebviewError> {
-    let css_cstr = bytes_to_cstr(buffer)?; //TODO: Find better way
+    let css_cstr = CStr::from_bytes_with_nul(buffer)?;
     let result = sys::webview_inject_css(webview as *mut _, css_cstr.as_ptr());
 
     match result {
@@ -201,7 +187,56 @@ pub unsafe fn webview_inject_css(
     }
 }
 
-//...set_title, set_fullscreen, set_color, dialog
+#[inline]
+pub unsafe fn webview_set_title<'title>(
+    webview: &mut sys::webview,
+    title: impl Into<Cow<'title, str>>
+) -> Result<(), WebviewError> {
+    let title_cstr = convert_to_cstring(title)?;
+    sys::webview_set_title(webview as *mut _, title_cstr.as_ptr());
+    Ok(())
+}
+
+#[inline]
+pub unsafe fn webview_set_fullscreen(webview: &mut sys::webview, fullscreen: bool) {
+    sys::webview_set_fullscreen(webview as *mut _, fullscreen as c_int);
+}
+
+#[inline]
+pub unsafe fn webview_set_color(
+    webview: &mut sys::webview,
+    red: u8,
+    green: u8,
+    blue: u8,
+    alpha: u8,
+) {
+    sys::webview_set_color(webview as *mut _, red, green, blue, alpha);
+}
+
+#[inline]
+pub unsafe fn webview_dialog<'title, 'arg>(
+    webview: &mut sys::webview,
+    dialog_type: Dialog,
+    flags: Flags,
+    title: impl Into<Cow<'title, str>>,
+    arg: impl Into<Cow<'arg, str>>,
+    result_buffer: &mut [u8],
+) -> Result<(), WebviewError> {
+    let title_cstr = convert_to_cstring(title)?;
+    let arg_cstr = convert_to_cstring(arg)?;
+    let (ptr, size) = (result_buffer.as_mut_ptr(), result_buffer.len());
+
+    sys::webview_dialog(
+        webview as *mut _,
+        dialog_type as c_int,
+        flags.bits() as c_int,
+        title_cstr.as_ptr(),
+        arg_cstr.as_ptr(),
+        ptr as *mut c_char,
+        size,
+    );
+    Ok(())
+}
 
 #[inline]
 pub unsafe fn webview_dispatch<'invoke, T>(

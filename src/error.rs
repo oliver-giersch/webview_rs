@@ -1,15 +1,16 @@
 use std::error;
+use std::ffi::{FromBytesWithNulError, NulError};
 use std::fmt;
 
 use self::WebviewError::*;
 use crate::conversion::CStrConversionError;
-use crate::ffi::{FFIError, LibraryError};
+use crate::ffi::LibraryError;
 
 #[derive(Debug)]
 pub enum WebviewError {
     Build,
     DispatchFailed,
-    Internal(LibraryError),
+    Library(LibraryError),
     InvalidPath,
     InvalidStr(CStrConversionError),
     InvalidThread,
@@ -22,9 +23,9 @@ impl fmt::Display for WebviewError {
         match *self {
             Build => unimplemented!(),
             DispatchFailed => unimplemented!(),
-            Internal(err) => unimplemented!(),
+            Library(ref err) => unimplemented!(),
             InvalidPath => unimplemented!(),
-            InvalidStr(err) => unimplemented!(),
+            InvalidStr(ref err) => unimplemented!(),
             InvalidThread => unimplemented!(),
         }
     }
@@ -35,7 +36,7 @@ impl error::Error for WebviewError {}
 impl From<LibraryError> for WebviewError {
     #[inline]
     fn from(error: LibraryError) -> Self {
-        WebviewError::Internal(error)
+        WebviewError::Library(error)
     }
 }
 
@@ -46,4 +47,16 @@ impl From<CStrConversionError> for WebviewError {
     }
 }
 
+impl From<FromBytesWithNulError> for WebviewError {
+    #[inline]
+    fn from(error: FromBytesWithNulError) -> Self {
+        WebviewError::InvalidStr(CStrConversionError::from(error))
+    }
+}
 
+impl From<NulError> for WebviewError {
+    #[inline]
+    fn from(error: NulError) -> Self {
+        WebviewError::InvalidStr(CStrConversionError::from(error))
+    }
+}

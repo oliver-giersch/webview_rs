@@ -1,8 +1,25 @@
+use std::borrow::Cow;
+use std::error::Error;
+use std::ffi::{CStr, CString, FromBytesWithNulError, NulError};
+use std::fmt;
+
 #[derive(Debug, Clone)]
 pub enum CStrConversionError {
     FromBytesWithNul(FromBytesWithNulError),
     Nul(NulError),
 }
+
+impl fmt::Display for CStrConversionError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match *self {
+            CStrConversionError::FromBytesWithNul(ref err) => write!(f, "{}", err.description()),
+            CStrConversionError::Nul(ref err) => write!(f, "{}", err.description()),
+        }
+    }
+}
+
+impl Error for CStrConversionError {}
 
 impl From<FromBytesWithNulError> for CStrConversionError {
     #[inline]
@@ -17,9 +34,6 @@ impl From<NulError> for CStrConversionError {
         CStrConversionError::Nul(err)
     }
 }
-
-use std::borrow::Cow;
-use std::ffi::{CStr, CString, FromBytesWithNulError, NulError};
 
 pub fn convert_to_cstring<'s>(
     string: impl Into<Cow<'s, str>>,
@@ -42,9 +56,4 @@ pub fn convert_to_cstring<'s>(
             Ok(Cow::from(cstring))
         }
     }
-}
-
-pub fn bytes_to_cstr(bytes: &[u8]) -> Result<&CStr, CStrConversionError> {
-    let cstr = CStr::from_bytes_with_nul(bytes)?;
-    Ok(cstr)
 }

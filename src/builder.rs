@@ -1,13 +1,15 @@
 use std::borrow::Cow;
 use std::mem;
+use std::path::Path;
 use std::thread;
 
-use webview_sys as sys;
-use crate::{ExternalInvokeFn, Webview, WebviewHandle};
+use crate::content::Content;
 use crate::conversion::convert_to_cstring;
 use crate::error::WebviewError;
 use crate::ffi;
 use crate::storage::StringStorage;
+use crate::{Webview, WebviewHandle};
+use webview_sys as sys;
 
 pub struct Builder<'title, 'content, 'invoke, T> {
     title: Option<Cow<'title, str>>,
@@ -15,7 +17,7 @@ pub struct Builder<'title, 'content, 'invoke, T> {
     size: Option<(usize, usize)>,
     resizable: bool,
     debug: bool,
-    external_invoke: Option<Box<dyn FnMut(&mut Webview<T>, &str) + 'invoke>>,
+    external_invoke: Option<Box<dyn FnMut(&mut Webview<'invoke, T>, &str) + 'invoke>>,
     userdata: Option<T>,
     thread_check: bool,
     buffer_size: usize,
@@ -26,6 +28,31 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
     pub fn new() -> Self {
         sys::runtime_size_check();
         Default::default()
+    }
+
+    #[inline]
+    pub fn set_title(mut self, title: impl Into<Cow<'title, str>>) -> Self {
+        self.title = Some(title.into());
+        self
+    }
+
+    #[inline]
+    pub fn set_content_url(self, url: impl Into<Cow<'content, str>>) -> Self {
+        self.set_content(Content::Url(url))
+    }
+
+    #[inline]
+    pub fn set_content_html(self, html: impl Into<Cow<'content, str>>) -> Self {
+        self.set_content(Content::Html(html))
+    }
+
+    #[inline]
+    pub fn set_content<C>(mut self, content: impl Into<Content<'content, C>>) -> Self
+    where
+        C: Into<Cow<'content, str>>
+    {
+        self.content = Some(content.into().into());
+        self
     }
 
     #[inline]
@@ -48,8 +75,17 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
     }
 
     #[inline]
-    pub fn set_external_invoke(mut self, func: impl FnMut(&mut Webview<T>, &str) + 'invoke) -> Self {
+    pub fn set_external_invoke(
+        mut self,
+        func: impl FnMut(&mut Webview<'invoke, T>, &str) + 'invoke,
+    ) -> Self {
         self.external_invoke = Some(Box::new(func));
+        self
+    }
+
+    #[inline]
+    pub fn set_userdata(mut self, userdata: T) -> Self {
+        self.userdata = Some(userdata);
         self
     }
 
@@ -77,7 +113,6 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
         let title = self.title.ok_or(WebviewError::Build)?;
         let content = self.content.ok_or(WebviewError::Build)?;
         let (width, height) = self.size.unwrap_or((800, 600));
-        let debug = self.debug;
 
         let inner = unsafe {
             let storage = StringStorage::new(
@@ -106,7 +141,7 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
             }
         };
 
-        let built = WebviewHandle::new(inner);
+        let mut built = WebviewHandle::new(inner);
 
         unsafe {
             let inner = built.webview();

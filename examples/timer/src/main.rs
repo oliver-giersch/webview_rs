@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::time;
 use std::thread;
 
-use webview_rs::{Webview, WebviewBuilder, Content, Userdata};
+use webview_rs::{Webview, WebviewHandle, Builder, Content};
 
 static HTML_DATA: &'static str = include_str!("../index.html");
 
@@ -29,7 +29,7 @@ impl Timer {
         *lock += 1;
     }
 
-    fn render(&self, webview: &Webview<Arc<Timer>>) {
+    fn render(&self, webview: &mut Webview<Arc<Timer>>) {
         let ticks = self.get();
         webview.eval_fn("updateTicks", &["ticks"]);
     }
@@ -38,20 +38,21 @@ impl Timer {
 fn main() {
     let timer: Arc<Timer> = Arc::new(Default::default());
 
-    let builder: WebviewBuilder<Arc<Timer>> = WebviewBuilder::new();
+    let builder: Builder<Arc<Timer>> = Builder::new();
 
-    let webview: Webview<Arc<Timer>> = builder
+    let mut webview: WebviewHandle<Arc<Timer>> = Builder::new()
         .set_title("Timer")
         .set_content(Content::Html(HTML_DATA))
-        .set_width(400)
-        .set_height(300)
+        .set_size(400, 400)
         .set_userdata(Arc::clone(&timer))
-        .set_external_invoke(|webview: &Webview<Arc<Timer>>, arg: &str| {
-            let timer = webview.userdata().unwrap();
+        .set_external_invoke(|webview: &mut Webview<Arc<Timer>>, arg: &str| {
             match arg {
                 "reset" => {
-                    timer.set(0);
-                    timer.render(webview);
+                    {
+                        let timer = webview.userdata().unwrap();
+                        timer.set(0);
+                    }
+                    webview.eval_fn("updateTicks", &["0"]).unwrap();
                 },
                 "exit" => webview.terminate(),
                 _ => {},
@@ -60,15 +61,25 @@ fn main() {
         .build()
         .expect("...");
 
-    let (main_handle, thread_handle) = webview.thread_handles();
+    let thread_handle = webview.thread_handle();
+
     thread::spawn(move || {
-        thread::sleep(time::Duration::from_micros(100_000));
-        timer.incr();
-        thread_handle.dispatch(|webview: &Webview<Arc<Timer>>| {
-            let timer = webview.userdata().unwrap();
-            timer.render(webview);
-        });
+        loop {
+            thread::sleep(time::Duration::from_micros(100_000));
+            timer.incr();
+            let result = thread_handle.try_dispatch(|webview| {
+                let ticks = {
+                    let timer = webview.userdata().unwrap();
+                    timer.get()
+                };
+                webview.eval_fn("updateTicks", &[&ticks.to_string()]).unwrap();
+            });
+
+            if result.is_err() {
+                break;
+            }
+        }
     });
 
-    main_handle.run();
+    webview.run(true);
 }
