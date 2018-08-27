@@ -3,11 +3,11 @@ use std::ffi::CStr;
 use std::mem;
 use std::os::raw::{c_char, c_int, c_void};
 
-use webview_sys as sys;
-use crate::Webview;
 use crate::callback;
-use crate::conversion::{CStrConversionError, bytes_to_cstr, convert_to_cstring};
+use crate::conversion::{bytes_to_cstr, convert_to_cstring, CStrConversionError};
 use crate::error::WebviewError;
+use crate::Webview;
+use webview_sys as sys;
 
 type DispatchFn = sys::c_webview_dispatch_fn;
 type InvokeFn = sys::c_extern_callback_fn;
@@ -31,7 +31,7 @@ impl From<i32> for LoopResult {
     fn from(result: i32) -> Self {
         match result {
             0 => LoopResult::Continue,
-            _ => LoopResult::Exit
+            _ => LoopResult::Exit,
         }
     }
 }
@@ -39,7 +39,7 @@ impl From<i32> for LoopResult {
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 pub enum LibraryError {
     Init(i32),
-    Eval(i32)
+    Eval(i32),
 }
 
 #[derive(Debug, PartialOrd, PartialEq)]
@@ -150,7 +150,7 @@ pub unsafe fn webview_simple<'title, 'content>(
 
     match result {
         0 => Ok(()),
-        c => Err(WebviewError::from(LibraryError::Init(c)))
+        c => Err(WebviewError::from(LibraryError::Init(c))),
     }
 }
 
@@ -160,7 +160,7 @@ pub unsafe fn webview_init(webview: &mut sys::webview) -> Result<(), LibraryErro
     let result = sys::webview_init(webview as *mut _);
     match result {
         0 => Ok(()),
-        c => Err(LibraryError::Init(c))
+        c => Err(LibraryError::Init(c)),
     }
 }
 
@@ -182,31 +182,37 @@ pub unsafe fn webview_eval(webview: &mut sys::webview, buffer: &[u8]) -> Result<
 
     match result {
         0 => Ok(()),
-        c => Err(WebviewError::from(LibraryError::Eval(c)))
+        c => Err(WebviewError::from(LibraryError::Eval(c))),
     }
 }
 
 #[must_use]
 #[inline]
-pub unsafe fn webview_inject_css(webview: &mut sys::webview, buffer: &[u8]) -> Result<(), WebviewError> {
+pub unsafe fn webview_inject_css(
+    webview: &mut sys::webview,
+    buffer: &[u8],
+) -> Result<(), WebviewError> {
     let css_cstr = bytes_to_cstr(buffer)?; //TODO: Find better way
     let result = sys::webview_inject_css(webview as *mut _, css_cstr.as_ptr());
 
     match result {
         0 => Ok(()),
-        c => Err(WebviewError::from(LibraryError::Eval(c)))
+        c => Err(WebviewError::from(LibraryError::Eval(c))),
     }
 }
 
 //...set_title, set_fullscreen, set_color, dialog
 
 #[inline]
-pub unsafe fn webview_dispatch<'invoke, T>(webview: &mut sys::webview, func: &dyn FnMut(&mut Webview<'invoke, T>)) {
+pub unsafe fn webview_dispatch<'invoke, T>(
+    webview: &mut sys::webview,
+    func: &dyn FnMut(&mut Webview<'invoke, T>),
+) {
     let callback: *mut c_void = mem::transmute(&func);
     sys::webview_dispatch(
         webview as *mut _,
         Some(callback::dispatch_handler::<T> as DispatchFn),
-        callback
+        callback,
     );
 }
 

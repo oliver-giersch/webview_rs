@@ -8,9 +8,9 @@ use std::borrow::Cow;
 use std::cell::UnsafeCell;
 use std::sync::{Arc, Weak};
 
-use webview_sys as sys;
 use crate::error::WebviewError;
 use crate::storage::StringStorage;
+use webview_sys as sys;
 
 mod builder;
 mod callback;
@@ -35,9 +35,7 @@ impl<'invoke, T> Webview<'invoke, T> {
         self.storage.eval_buffer.clear();
         self.storage.eval_buffer.push_str(js);
 
-        unsafe {
-            ffi::webview_eval(&mut self.webview, self.storage.nul_terminated_buffer())?
-        };
+        unsafe { ffi::webview_eval(&mut self.webview, self.storage.nul_terminated_buffer())? };
         Ok(())
     }
 
@@ -61,9 +59,7 @@ impl<'invoke, T> Webview<'invoke, T> {
         }
         self.storage.eval_buffer.push_str(");");
 
-        unsafe {
-            ffi::webview_eval(&mut self.webview, self.storage.nul_terminated_buffer())?
-        };
+        unsafe { ffi::webview_eval(&mut self.webview, self.storage.nul_terminated_buffer())? };
         Ok(())
     }
 
@@ -72,14 +68,15 @@ impl<'invoke, T> Webview<'invoke, T> {
         self.storage.eval_buffer.clear();
         self.storage.eval_buffer.push_str(css);
 
-        unsafe {
-            ffi::webview_eval(&mut self.webview, self.storage.nul_terminated_buffer())?
-        };
+        unsafe { ffi::webview_eval(&mut self.webview, self.storage.nul_terminated_buffer())? };
         Ok(())
     }
 
     #[inline]
-    pub fn set_title<'title>(&mut self, title: impl Into<Cow<'title, str>>) -> Result<(), WebviewError> {
+    pub fn set_title<'title>(
+        &mut self,
+        title: impl Into<Cow<'title, str>>,
+    ) -> Result<(), WebviewError> {
         unimplemented!()
     }
 
@@ -122,7 +119,7 @@ impl<'invoke, T> Drop for Webview<'invoke, T> {
 /// unsafe impl<T> !Sync for WebviewHandle<T> {}
 
 pub struct WebviewHandle<'invoke, T> {
-    inner: Arc<UnsafeCell<Webview<'invoke, T>>>
+    inner: Arc<UnsafeCell<Webview<'invoke, T>>>,
 }
 
 impl<'invoke, T> WebviewHandle<'invoke, T> {
@@ -150,7 +147,7 @@ impl<'invoke, T> WebviewHandle<'invoke, T> {
     #[inline]
     pub fn thread_handle(&self) -> ThreadHandle<'invoke, T> {
         ThreadHandle {
-            inner: Arc::downgrade(&self.inner)
+            inner: Arc::downgrade(&self.inner),
         }
     }
 
@@ -165,20 +162,22 @@ unsafe impl<'invoke, T> Sync for ThreadHandle<'invoke, T> where T: Sync {}
 
 #[derive(Clone)]
 pub struct ThreadHandle<'invoke, T> {
-    inner: Weak<UnsafeCell<Webview<'invoke, T>>>
+    inner: Weak<UnsafeCell<Webview<'invoke, T>>>,
 }
 
 impl<'invoke, T> ThreadHandle<'invoke, T> {
     #[inline]
-    pub fn try_dispatch(&self, func: impl FnMut(&mut Webview<'invoke, T>) + Send) -> Result<(), WebviewError> {
+    pub fn try_dispatch(
+        &self,
+        func: impl FnMut(&mut Webview<'invoke, T>) + Send,
+    ) -> Result<(), WebviewError> {
         match self.inner.upgrade() {
             Some(ref cell) => {
                 let webview = unsafe { &mut *cell.get() };
                 webview.dispatch(func);
                 Ok(())
-            },
-            None => Err(WebviewError::DispatchFailed)
+            }
+            None => Err(WebviewError::DispatchFailed),
         }
     }
 }
-
