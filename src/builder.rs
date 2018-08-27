@@ -9,19 +9,19 @@ use crate::error::WebviewError;
 use crate::ffi;
 use crate::storage::StringStorage;
 
-pub struct Builder<'title, 'content, T> {
+pub struct Builder<'title, 'content, 'invoke, T> {
     title: Option<Cow<'title, str>>,
     content: Option<Cow<'content, str>>,
     size: Option<(usize, usize)>,
     resizable: bool,
     debug: bool,
-    external_invoke: Option<ExternalInvokeFn<T>>,
+    external_invoke: Option<Box<dyn FnMut(&mut Webview<T>, &str) + 'invoke>>,
     userdata: Option<T>,
     thread_check: bool,
     buffer_size: usize,
 }
 
-impl<'title, 'content, T> Builder<'title, 'content, T> {
+impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
     #[inline]
     pub fn new() -> Self {
         sys::runtime_size_check();
@@ -48,7 +48,7 @@ impl<'title, 'content, T> Builder<'title, 'content, T> {
     }
 
     #[inline]
-    pub fn set_external_invoke(mut self, func: impl FnMut(&mut Webview<T>, &str) + 'title + 'content) -> Self {
+    pub fn set_external_invoke(mut self, func: impl FnMut(&mut Webview<T>, &str) + 'invoke) -> Self {
         self.external_invoke = Some(Box::new(func));
         self
     }
@@ -66,7 +66,7 @@ impl<'title, 'content, T> Builder<'title, 'content, T> {
     }
 
     #[inline(never)]
-    pub fn build(self) -> Result<WebviewHandle<T>, WebviewError> {
+    pub fn build(self) -> Result<WebviewHandle<'invoke, T>, WebviewError> {
         if self.thread_check {
             if let Some("main") = thread::current().name() {
             } else {
@@ -117,7 +117,7 @@ impl<'title, 'content, T> Builder<'title, 'content, T> {
     }
 }
 
-impl<'title, 'content, T> Default for Builder<'title, 'content, T> {
+impl<'title, 'content, 'invoke, T> Default for Builder<'title, 'content, 'invoke, T> {
     #[inline]
     fn default() -> Self {
         Self {

@@ -118,10 +118,10 @@ pub unsafe fn struct_webview_set_debug(webview: &mut sys::webview, debug: bool) 
 }
 
 #[inline]
-pub unsafe fn struct_webview_set_external_invoke_cb<T>(webview: &mut sys::webview) {
+pub unsafe fn struct_webview_set_external_invoke_cb<'invoke, T>(webview: &mut sys::webview) {
     sys::struct_webview_set_external_invoke_cb(
         webview as *mut _,
-        Some(callback::invoke_handler::<T> as InvokeFn),
+        Some(callback::invoke_handler::<'invoke, T> as InvokeFn),
     );
 }
 
@@ -201,11 +201,11 @@ pub unsafe fn webview_inject_css(webview: &mut sys::webview, buffer: &[u8]) -> R
 //...set_title, set_fullscreen, set_color, dialog
 
 #[inline]
-pub unsafe fn webview_dispatch<T>(webview: &mut sys::webview, func: &dyn FnMut(&mut Webview<T>)) {
+pub unsafe fn webview_dispatch<'invoke, T>(webview: &mut sys::webview, func: &dyn FnMut(&mut Webview<'invoke, T>)) {
     let callback: *mut c_void = mem::transmute(&func);
     sys::webview_dispatch(
         webview as *mut _,
-        Some(callback::dispatch_handler::<T> as DispatchFn),
+        Some(callback::dispatch_handler::<'invoke, T> as DispatchFn),
         callback
     );
 }

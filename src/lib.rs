@@ -19,17 +19,17 @@ mod error;
 mod ffi;
 mod storage;
 
-type ExternalInvokeFn<T> = Box<dyn FnMut(&mut Webview<T>, &str)>;
+type ExternalInvokeFn<'invoke, T> = Box<dyn FnMut(&mut Webview<T>, &str) + 'invoke>;
 
 #[repr(C)]
-pub struct Webview<T> {
+pub struct Webview<'invoke, T> {
     webview: sys::webview,
     storage: StringStorage,
-    external_invoke: Option<ExternalInvokeFn<T>>,
+    external_invoke: Option<ExternalInvokeFn<'invoke, T>>,
     userdata: Option<T>,
 }
 
-impl<T> Webview<T> {
+impl<'invoke, T> Webview<'invoke, T> {
     #[inline]
     pub fn eval(&mut self, js: &str) -> Result<(), WebviewError> {
         self.storage.eval_buffer.clear();
@@ -100,7 +100,7 @@ impl<T> Webview<T> {
     }
 
     #[inline]
-    pub fn dispatch(&mut self, func: impl FnMut(&mut Webview<T>)) {
+    pub fn dispatch(&mut self, func: impl FnMut(&mut Webview<'invoke, T>)) {
         let func = Box::leak(Box::new(func));
         unsafe { ffi::webview_dispatch(&mut self.webview, func) };
     }
@@ -111,7 +111,7 @@ impl<T> Webview<T> {
     }
 }
 
-impl<T> Drop for Webview<T> {
+impl<'invoke, T> Drop for Webview<'invoke, T> {
     #[inline]
     fn drop(&mut self) {
         unsafe { ffi::webview_exit(&mut self.webview) };
@@ -121,13 +121,13 @@ impl<T> Drop for Webview<T> {
 /// unsafe impl<T> !Send for WebviewHandle<T> {}
 /// unsafe impl<T> !Sync for WebviewHandle<T> {}
 
-pub struct WebviewHandle<T> {
-    inner: Arc<UnsafeCell<Webview<T>>>
+pub struct WebviewHandle<'invoke, T> {
+    inner: Arc<UnsafeCell<Webview<'invoke, T>>>
 }
 
-impl<T> WebviewHandle<T> {
+impl<'invoke, T> WebviewHandle<'invoke, T> {
     #[inline]
-    fn new(inner: Webview<T>) -> Self {
+    fn new(inner: Webview<'invoke, T>) -> Self {
         Self {
             inner: Arc::new(UnsafeCell::new(inner)),
         }
@@ -148,29 +148,29 @@ impl<T> WebviewHandle<T> {
     //...
 
     #[inline]
-    pub fn thread_handle(&self) -> ThreadHandle<T> {
+    pub fn thread_handle(&self) -> ThreadHandle<'invoke, T> {
         ThreadHandle {
             inner: Arc::downgrade(&self.inner)
         }
     }
 
     #[inline]
-    fn webview(&self) -> &mut Webview<T> {
+    fn webview(&self) -> &mut Webview<'invoke, T> {
         unsafe { &mut *self.inner.get() }
     }
 }
 
-unsafe impl<T> Send for ThreadHandle<T> where T: Send {}
-unsafe impl<T> Sync for ThreadHandle<T> where T: Sync {}
+unsafe impl<'invoke, T> Send for ThreadHandle<'invoke, T> where T: Send {}
+unsafe impl<'invoke, T> Sync for ThreadHandle<'invoke, T> where T: Sync {}
 
 #[derive(Clone)]
-pub struct ThreadHandle<T> {
-    inner: Weak<UnsafeCell<Webview<T>>>
+pub struct ThreadHandle<'invoke, T> {
+    inner: Weak<UnsafeCell<Webview<'invoke, T>>>
 }
 
-impl<T> ThreadHandle<T> {
+impl<'invoke, T> ThreadHandle<'invoke, T> {
     #[inline]
-    pub fn try_dispatch(&self, func: impl FnMut(&mut Webview<T>) + Send) -> Result<(), WebviewError> {
+    pub fn try_dispatch(&self, func: impl FnMut(&mut Webview<'invoke, T>) + Send) -> Result<(), WebviewError> {
         match self.inner.upgrade() {
             Some(ref cell) => {
                 let webview = unsafe { &mut *cell.get() };
