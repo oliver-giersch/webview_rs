@@ -43,3 +43,8 @@ pub fn convert_to_cstring<'s>(
         }
     }
 }
+
+pub fn bytes_to_cstr(bytes: &[u8]) -> Result<&CStr, CStrConversionError> {
+    let cstr = CStr::from_bytes_with_nul(bytes)?;
+    Ok(cstr)
+}

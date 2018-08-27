@@ -4,8 +4,9 @@ use std::mem;
 use std::os::raw::{c_char, c_int, c_void};
 
 use webview_sys as sys;
-use crate::Webview;use crate::callback;
-use crate::conversion::{CStrConversionError, convert_to_cstring};
+use crate::Webview;
+use crate::callback;
+use crate::conversion::{CStrConversionError, bytes_to_cstr, convert_to_cstring};
 use crate::error::WebviewError;
 
 type DispatchFn = sys::c_webview_dispatch_fn;
@@ -39,6 +40,20 @@ impl From<i32> for LoopResult {
 pub enum LibraryError {
     Init(i32),
     Eval(i32)
+}
+
+#[derive(Debug, PartialOrd, PartialEq)]
+pub enum FFIError {
+    Conversion(CStrConversionError),
+    Init(i32),
+    Eval(i32),
+}
+
+impl From<CStrConversionError> for FFIError {
+    #[inline]
+    fn from(error: CStrConversionError) -> Self {
+        FFIError::Conversion(error)
+    }
 }
 
 bitflags! {
@@ -162,7 +177,7 @@ pub unsafe fn webview_loop(webview: &mut sys::webview, blocking: bool) -> LoopRe
 #[must_use]
 #[inline]
 pub unsafe fn webview_eval(webview: &mut sys::webview, buffer: &[u8]) -> Result<(), WebviewError> {
-    let js_cstr = CStr::from_bytes_with_nul(buffer)?;
+    let js_cstr = bytes_to_cstr(buffer)?; //TODO: Find better way
     let result = sys::webview_eval(webview as *mut _, js_cstr.as_ptr());
 
     match result {
@@ -174,7 +189,7 @@ pub unsafe fn webview_eval(webview: &mut sys::webview, buffer: &[u8]) -> Result<
 #[must_use]
 #[inline]
 pub unsafe fn webview_inject_css(webview: &mut sys::webview, buffer: &[u8]) -> Result<(), WebviewError> {
-    let css_cstr = CStr::from_bytes_with_nul(buffer)?;
+    let css_cstr = bytes_to_cstr(buffer)?; //TODO: Find better way
     let result = sys::webview_inject_css(webview as *mut _, css_cstr.as_ptr());
 
     match result {

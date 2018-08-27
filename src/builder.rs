@@ -48,8 +48,8 @@ impl<'title, 'content, T> Builder<'title, 'content, T> {
     }
 
     #[inline]
-    pub fn set_external_invoke(mut self, func: impl FnMut(&Webview<T>, &str)) -> Self {
-        self.external_invoke = Some(Box::new(&func));
+    pub fn set_external_invoke(mut self, func: impl FnMut(&mut Webview<T>, &str) + 'title + 'content) -> Self {
+        self.external_invoke = Some(Box::new(func));
         self
     }
 

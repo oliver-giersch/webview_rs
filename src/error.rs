@@ -1,8 +1,9 @@
-use std::{error, fmt};
+use std::error;
+use std::fmt;
 
 use self::WebviewError::*;
 use crate::conversion::CStrConversionError;
-use crate::ffi::LibraryError;
+use crate::ffi::{FFIError, LibraryError};
 
 #[derive(Debug)]
 pub enum WebviewError {
@@ -44,3 +45,5 @@ impl From<CStrConversionError> for WebviewError {
         WebviewError::InvalidStr(error)
     }
 }
+
+
