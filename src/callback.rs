@@ -1,4 +1,5 @@
 use std::ffi::CStr;
+use std::mem;
 use std::os::raw::{c_char, c_void};
 
 use crate::Webview;
@@ -37,8 +38,7 @@ pub extern "system" fn dispatch_handler<'invoke, T>(webview: *mut sys::webview, 
 
         //The `Send` bound variant is used here so the function can be used for
         // dispatches from the main thread as well as any other thread.
-        let ptr: *mut &mut (FnMut(&mut Webview<'invoke, T>) + Send) = args as _;
-        let mut boxed = Box::from_raw(ptr);
-        boxed(webview);
+        let mut func: &mut &mut (FnMut(&mut Webview<'invoke, T>) + Send) = mem::transmute(args);
+        func(webview);
     }
 }

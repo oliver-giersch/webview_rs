@@ -119,8 +119,8 @@ impl<'invoke, T> Webview<'invoke, T> {
     #[inline]
     pub fn dispatch(&mut self, func: impl FnMut(&mut Webview<'invoke, T>)) {
         //TODO: Check if it works without box as well
-        let func = Box::leak(Box::new(func));
-        unsafe { ffi::webview_dispatch(&mut self.webview, func) };
+        //let func = Box::leak(Box::new(func));
+        unsafe { ffi::webview_dispatch(&mut self.webview, &func) };
     }
 
     #[inline]
