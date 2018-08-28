@@ -31,33 +31,38 @@ impl Timer {
 
     fn render(&self, webview: &mut Webview<Arc<Timer>>) {
         let ticks = self.get();
-        webview.eval_fn("updateTicks", &["ticks"]);
+        webview.eval_fn("updateTicks", &["ticks"]).unwrap();
     }
+}
+
+type Userdata = Arc<Timer>;
+
+fn external_invoke(webview: &mut Webview<Arc<Timer>>, arg: &str) {
+    match arg {
+        "reset" => reset_invoke(webview),
+        "exit" => exit_invoke(webview),
+        _ => {},
+    }
+}
+
+fn reset_invoke(webview: &mut Webview<Userdata>) {
+    {
+        webview.userdata().set(0);
+    }
+    webview.eval_fn("updateTicks", &["0"]).unwrap();
+}
+
+fn exit_invoke(webview: &mut Webview<Userdata>) {
+    webview.terminate();
 }
 
 fn main() {
     let timer: Arc<Timer> = Arc::new(Default::default());
-
-    let builder: Builder<Arc<Timer>> = Builder::new();
-
-    let mut webview: WebviewHandle<Arc<Timer>> = Builder::new()
+    let mut webview = Builder::with_userdata(Arc::clone(&timer))
         .set_title("Timer")
         .set_content(Content::Html(HTML_DATA))
         .set_size(400, 400)
-        .set_userdata(Arc::clone(&timer))
-        .set_external_invoke(|webview: &mut Webview<Arc<Timer>>, arg: &str| {
-            match arg {
-                "reset" => {
-                    {
-                        let timer = webview.userdata().unwrap();
-                        timer.set(0);
-                    }
-                    webview.eval_fn("updateTicks", &["0"]).unwrap();
-                },
-                "exit" => webview.terminate(),
-                _ => {},
-            };
-        })
+        .set_external_invoke(external_invoke) //|webview: &mut Webview<Arc<Timer>>, arg: &str| {...}
         .build()
         .expect("...");
 
@@ -68,10 +73,7 @@ fn main() {
             thread::sleep(time::Duration::from_micros(100_000));
             timer.incr();
             let result = thread_handle.try_dispatch(|webview| {
-                let ticks = {
-                    let timer = webview.userdata().unwrap();
-                    timer.get()
-                };
+                let ticks = webview.userdata().get();
                 webview.eval_fn("updateTicks", &[&ticks.to_string()]).unwrap();
             });
 

@@ -16,7 +16,7 @@ pub enum WebviewError {
     InvalidThread,
 }
 
-//TODO: Rewrite error messages
+//TODO: Write error messages
 impl fmt::Display for WebviewError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {

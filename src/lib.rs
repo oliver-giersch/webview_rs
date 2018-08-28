@@ -24,6 +24,10 @@ mod error;
 mod ffi;
 mod storage;
 
+//TODOS
+//TODO: Make builder more ergonomic
+//TODO: Make userdata more ergonomic
+
 /// Doc
 pub fn webview<'title, 'content>(
     title: impl Into<Cow<'title, str>>,
@@ -42,7 +46,7 @@ pub struct Webview<'invoke, T> {
     webview: sys::webview,
     storage: StringStorage,
     external_invoke: Option<Box<FnMut(&mut Webview<'invoke, T>, &str) + 'invoke>>,
-    userdata: Option<T>,
+    userdata: T,
 }
 
 impl<'invoke, T> Webview<'invoke, T> {
@@ -118,8 +122,6 @@ impl<'invoke, T> Webview<'invoke, T> {
 
     #[inline]
     pub fn dispatch(&mut self, func: impl FnMut(&mut Webview<'invoke, T>)) {
-        //TODO: Check if it works without box as well
-        //let func = Box::leak(Box::new(func));
         unsafe { ffi::webview_dispatch(&mut self.webview, &func) };
     }
 
@@ -129,8 +131,13 @@ impl<'invoke, T> Webview<'invoke, T> {
     }
 
     #[inline]
-    pub fn userdata(&self) -> Option<&T> {
-        self.userdata.as_ref()
+    pub fn userdata(&self) -> &T {
+        &self.userdata
+    }
+
+    #[inline]
+    pub fn userdata_mut(&mut self) -> &mut T {
+        &mut self.userdata
     }
 }
 
@@ -159,23 +166,22 @@ impl<'invoke, T> WebviewHandle<'invoke, T> {
     #[inline]
     pub fn run(&mut self, blocking: bool) {
         use ffi::LoopResult::Continue;
-        let inner = unsafe { &mut *self.inner.get() };
-        while let Continue = unsafe { ffi::webview_loop(&mut inner.webview, blocking) } {}
+        while let Continue = unsafe { ffi::webview_loop(&mut self.webview_mut().webview, blocking) } {}
     }
 
     #[inline]
     pub fn eval(&mut self, js: &str) -> Result<(), WebviewError> {
-        self.webview().eval(js)
+        self.webview_mut().eval(js)
     }
 
     #[inline]
     pub fn eval_fn(&mut self, function: &str, args: &[&str]) -> Result<(), WebviewError> {
-        self.webview().eval_fn(function, args)
+        self.webview_mut().eval_fn(function, args)
     }
 
     #[inline]
     pub fn inject_css(&mut self, css: &str) -> Result<(), WebviewError> {
-        self.webview().inject_css(css)
+        self.webview_mut().inject_css(css)
     }
 
     #[inline]
@@ -183,17 +189,17 @@ impl<'invoke, T> WebviewHandle<'invoke, T> {
         &mut self,
         title: impl Into<Cow<'title, str>>,
     ) -> Result<(), WebviewError> {
-        self.webview().set_title(title)
+        self.webview_mut().set_title(title)
     }
 
     #[inline]
     pub fn set_fullscreen(&mut self, fullscreen: bool) {
-        self.webview().set_fullscreen(fullscreen);
+        self.webview_mut().set_fullscreen(fullscreen);
     }
 
     #[inline]
     pub fn set_color(&mut self, color: impl Into<[u8; 4]>) {
-        self.webview().set_color(color);
+        self.webview_mut().set_color(color);
     }
 
     #[inline]
@@ -205,22 +211,27 @@ impl<'invoke, T> WebviewHandle<'invoke, T> {
         arg: impl Into<Cow<'arg, str>>,
         result_buffer: &mut [u8],
     ) -> Result<(), WebviewError> {
-        self.webview().dialog(dialog, flags, title, arg, result_buffer)
+        self.webview_mut().dialog(dialog, flags, title, arg, result_buffer)
     }
 
     #[inline]
     pub fn dispatch(&mut self, func: impl FnMut(&mut Webview<'invoke, T>)) {
-        self.webview().dispatch(func);
+        self.webview_mut().dispatch(func);
     }
 
     #[inline]
     pub fn terminate(&mut self) {
-        self.webview().terminate();
+        self.webview_mut().terminate();
     }
 
     #[inline]
-    pub fn userdata(&mut self) -> Option<&mut T> {
-        self.webview().userdata.as_mut()
+    pub fn userdata(&self) -> &T {
+        self.webview().userdata()
+    }
+
+    #[inline]
+    pub fn userdata_mut(&mut self) -> &T {
+        self.webview_mut().userdata()
     }
 
     #[inline]
@@ -231,7 +242,12 @@ impl<'invoke, T> WebviewHandle<'invoke, T> {
     }
 
     #[inline]
-    fn webview(&mut self) -> &mut Webview<'invoke, T> {
+    fn webview(&self) -> &Webview<'invoke, T> {
+        unsafe { &*self.inner.get() }
+    }
+
+    #[inline]
+    fn webview_mut(&mut self) -> &mut Webview<'invoke, T> {
         unsafe { &mut *self.inner.get() }
     }
 }

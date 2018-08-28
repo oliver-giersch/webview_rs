@@ -18,16 +18,44 @@ pub struct Builder<'title, 'content, 'invoke, T> {
     resizable: bool,
     debug: bool,
     external_invoke: Option<Box<dyn FnMut(&mut Webview<'invoke, T>, &str) + 'invoke>>,
-    userdata: Option<T>,
+    userdata: T,
     thread_check: bool,
     buffer_size: usize,
 }
 
+impl<'title, 'content, 'invoke> Builder<'title, 'content, 'invoke, ()> {
+    #[inline]
+    pub fn without_userdata() -> Self {
+        sys::runtime_size_check();
+        Builder {
+            title: None,
+            content: None,
+            size: None,
+            resizable: true,
+            debug: false,
+            external_invoke: None,
+            userdata: (),
+            thread_check: true,
+            buffer_size: 0,
+        }
+    }
+}
+
 impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
     #[inline]
-    pub fn new() -> Self {
+    pub fn with_userdata(userdata: T) -> Builder<'title, 'content, 'invoke, T> {
         sys::runtime_size_check();
-        Default::default()
+        Builder {
+            title: None,
+            content: None,
+            size: None,
+            resizable: true,
+            debug: false,
+            external_invoke: None,
+            userdata,
+            thread_check: true,
+            buffer_size: 0,
+        }
     }
 
     #[inline]
@@ -80,12 +108,6 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
         func: impl FnMut(&mut Webview<'invoke, T>, &str) + 'invoke,
     ) -> Self {
         self.external_invoke = Some(Box::new(func));
-        self
-    }
-
-    #[inline]
-    pub fn set_userdata(mut self, userdata: T) -> Self {
-        self.userdata = Some(userdata);
         self
     }
 
@@ -144,27 +166,10 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
         let mut built = WebviewHandle::new(inner);
 
         unsafe {
-            let inner = built.webview();
+            let inner = built.webview_mut();
             ffi::webview_init(&mut inner.webview)?;
         }
 
         Ok(built)
-    }
-}
-
-impl<'title, 'content, 'invoke, T> Default for Builder<'title, 'content, 'invoke, T> {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            title: None,
-            content: None,
-            size: None,
-            resizable: true,
-            debug: false,
-            external_invoke: None,
-            userdata: None,
-            thread_check: true,
-            buffer_size: 0,
-        }
     }
 }
