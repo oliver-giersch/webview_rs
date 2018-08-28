@@ -21,7 +21,7 @@ fn main() {
         .build()
         .unwrap();
 
-    webview.inject_css(CSS);
+    webview.inject_css(CSS).expect("could not inject css");
 
     for id in 0..THREADS {
         let handle = webview.thread_handle();
