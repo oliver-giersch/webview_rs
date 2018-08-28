@@ -1,13 +1,13 @@
 <!doctype html>
 <html>
-<body>
-<p id="ticks"></p>
-<button onclick="external.invoke('reset')">reset</button>
-<button onclick="external.invoke('exit')">exit</button>
-<script type="text/javascript">
-    function updateTicks(n) {
-      document.getElementById('ticks').innerText = 'ticks ' + n;
-    }
-  </script>
-</body>
+  <body>
+    <p id="ticks"></p>
+    <button onclick="external.invoke('reset')">reset</button>
+    <button onclick="external.invoke('exit')">exit</button>
+    <script type="text/javascript">
+      function updateTicks(n) {
+        document.getElementById('ticks').innerText = 'ticks ' + n;
+      }
+    </script>
+  </body>
 </html>

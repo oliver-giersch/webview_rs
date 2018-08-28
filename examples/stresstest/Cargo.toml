@@ -1,0 +1,8 @@
+[package]
+name = "stresstest"
+version = "0.1.0"
+authors = ["oliver <oliver.giersch@googlemail.com>"]
+
+[dependencies]
+webview_rs = { path = "../../../webview_rs", version = "*" }
+rand = "*"

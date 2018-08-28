@@ -70,7 +70,7 @@ fn main() {
 
     thread::spawn(move || {
         loop {
-            thread::sleep(time::Duration::from_micros(100_000));
+            thread::sleep(time::Duration::from_millis(100));
             timer.incr();
             let result = thread_handle.try_dispatch(|webview| {
                 let ticks = webview.userdata().get();
