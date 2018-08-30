@@ -29,7 +29,7 @@ impl Timer {
         *lock += 1;
     }
 
-    fn render(&self, webview: &mut Webview<Arc<Timer>>) {
+    fn render(&self, webview: &mut Webview, userdata: &mut Arc<Timer>) {
         let ticks = self.get();
         webview.eval_fn("updateTicks", &["ticks"]).unwrap();
     }
@@ -37,22 +37,20 @@ impl Timer {
 
 type Userdata = Arc<Timer>;
 
-fn external_invoke(webview: &mut Webview<Arc<Timer>>, arg: &str) {
+fn external_invoke(webview: &mut Webview, userdata: &mut Userdata, arg: &str) {
     match arg {
-        "reset" => reset_invoke(webview),
+        "reset" => reset_invoke(webview, userdata),
         "exit" => exit_invoke(webview),
         _ => {},
     }
 }
 
-fn reset_invoke(webview: &mut Webview<Userdata>) {
-    {
-        webview.userdata().set(0);
-    }
+fn reset_invoke(webview: &mut Webview, userdata: &mut Userdata) {
+    userdata.set(0);
     webview.eval_fn("updateTicks", &["0"]).unwrap();
 }
 
-fn exit_invoke(webview: &mut Webview<Userdata>) {
+fn exit_invoke(webview: &mut Webview) {
     webview.terminate();
 }
 
@@ -72,8 +70,8 @@ fn main() {
         loop {
             thread::sleep(time::Duration::from_millis(100));
             timer.incr();
-            let result = thread_handle.try_dispatch(|webview| {
-                let ticks = webview.userdata().get();
+            let result = thread_handle.try_dispatch(|webview, userdata| {
+                let ticks = userdata.get();
                 webview.eval_fn("updateTicks", &[&ticks.to_string()]).unwrap();
             });
 

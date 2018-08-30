@@ -241,7 +241,7 @@ pub unsafe fn webview_dialog<'title, 'arg>(
 #[inline]
 pub unsafe fn webview_dispatch<'invoke, T>(
     webview: &mut sys::webview,
-    func: &dyn FnMut(&mut Webview<'invoke, T>),
+    func: &dyn FnMut(&mut Webview, &mut T),
 ) {
     let callback: *mut c_void = mem::transmute(&func);
     sys::webview_dispatch(

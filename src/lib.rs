@@ -42,14 +42,26 @@ pub fn webview<'title, 'content>(
 }
 
 #[repr(C)]
-pub struct Webview<'invoke, T> {
+pub struct WebviewWrapper<'invoke, T> {
+    inner: Webview,
+    ext: Extension<'invoke, T>
+}
+
+#[repr(C)]
+pub struct Webview {
     webview: sys::webview,
     storage: StringStorage,
-    external_invoke: Option<Box<FnMut(&mut Webview<'invoke, T>, &str) + 'invoke>>,
+}
+
+type ExternalInvokeFnBox<'invoke, T> = Box<FnMut(&mut Webview, &mut T, &str) + 'invoke>;
+
+#[repr(C)]
+struct Extension<'invoke, T> {
+    external_invoke: Option<ExternalInvokeFnBox<'invoke, T>>,
     userdata: T,
 }
 
-impl<'invoke, T> Webview<'invoke, T> {
+impl Webview {
     #[inline]
     pub fn eval(&mut self, js: &str) -> Result<(), WebviewError> {
         self.storage.eval_buffer.clear();
@@ -121,7 +133,7 @@ impl<'invoke, T> Webview<'invoke, T> {
     }
 
     #[inline]
-    pub fn dispatch(&mut self, func: impl FnMut(&mut Webview<'invoke, T>)) {
+    pub fn dispatch<T>(&mut self, func: impl FnMut(&mut Webview, &mut T)) {
         unsafe { ffi::webview_dispatch(&mut self.webview, &func) };
     }
 
@@ -129,19 +141,9 @@ impl<'invoke, T> Webview<'invoke, T> {
     pub fn terminate(&mut self) {
         unsafe { ffi::webview_terminate(&mut self.webview) };
     }
-
-    #[inline]
-    pub fn userdata(&self) -> &T {
-        &self.userdata
-    }
-
-    #[inline]
-    pub fn userdata_mut(&mut self) -> &mut T {
-        &mut self.userdata
-    }
 }
 
-impl<'invoke, T> Drop for Webview<'invoke, T> {
+impl Drop for Webview {
     #[inline]
     fn drop(&mut self) {
         unsafe { ffi::webview_exit(&mut self.webview) };
@@ -152,12 +154,12 @@ impl<'invoke, T> Drop for Webview<'invoke, T> {
 /// unsafe impl<T> !Sync for WebviewHandle<T> {}
 
 pub struct WebviewHandle<'invoke, T = ()> {
-    inner: Arc<UnsafeCell<Webview<'invoke, T>>>,
+    inner: Arc<UnsafeCell<WebviewWrapper<'invoke, T>>>,
 }
 
 impl<'invoke, T> WebviewHandle<'invoke, T> {
     #[inline]
-    fn new(inner: Webview<'invoke, T>) -> Self {
+    fn new(inner: WebviewWrapper<'invoke, T>) -> Self {
         Self {
             inner: Arc::new(UnsafeCell::new(inner)),
         }
@@ -215,7 +217,7 @@ impl<'invoke, T> WebviewHandle<'invoke, T> {
     }
 
     #[inline]
-    pub fn dispatch(&mut self, func: impl FnMut(&mut Webview<'invoke, T>)) {
+    pub fn dispatch(&mut self, func: impl FnMut(&mut Webview, &mut T)) {
         self.webview_mut().dispatch(func);
     }
 
@@ -226,12 +228,12 @@ impl<'invoke, T> WebviewHandle<'invoke, T> {
 
     #[inline]
     pub fn userdata(&self) -> &T {
-        self.webview().userdata()
+        &self.extension().userdata
     }
 
     #[inline]
     pub fn userdata_mut(&mut self) -> &T {
-        self.webview_mut().userdata()
+        &mut self.extension_mut().userdata
     }
 
     #[inline]
@@ -242,13 +244,23 @@ impl<'invoke, T> WebviewHandle<'invoke, T> {
     }
 
     #[inline]
-    fn webview(&self) -> &Webview<'invoke, T> {
-        unsafe { &*self.inner.get() }
+    fn webview(&self) -> &Webview {
+        unsafe { &(*self.inner.get()).inner }
     }
 
     #[inline]
-    fn webview_mut(&mut self) -> &mut Webview<'invoke, T> {
-        unsafe { &mut *self.inner.get() }
+    fn webview_mut(&mut self) -> &mut Webview {
+        unsafe { &mut (*self.inner.get()).inner }
+    }
+
+    #[inline]
+    fn extension(&self) -> &Extension<'invoke, T> {
+        unsafe { &mut (*self.inner.get()).ext }
+    }
+
+    #[inline]
+    fn extension_mut(&mut self) -> &mut Extension<'invoke, T> {
+        unsafe { &mut (*self.inner.get()).ext }
     }
 }
 
@@ -257,18 +269,18 @@ unsafe impl<'invoke, T> Sync for ThreadHandle<'invoke, T> where T: Sync {}
 
 #[derive(Clone)]
 pub struct ThreadHandle<'invoke, T> {
-    inner: Weak<UnsafeCell<Webview<'invoke, T>>>,
+    inner: Weak<UnsafeCell<WebviewWrapper<'invoke, T>>>,
 }
 
 impl<'invoke, T> ThreadHandle<'invoke, T> {
     #[inline]
     pub fn try_dispatch(
         &self,
-        func: impl FnMut(&mut Webview<'invoke, T>) + Send,
+        func: impl FnMut(&mut Webview, &mut T) + Send,
     ) -> Result<(), WebviewError> {
         match self.inner.upgrade() {
             Some(ref cell) => {
-                let webview = unsafe { &mut *cell.get() };
+                let webview = unsafe { &mut (*cell.get()).inner };
                 webview.dispatch(func);
                 Ok(())
             }

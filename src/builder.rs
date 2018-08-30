@@ -8,7 +8,7 @@ use crate::conversion::convert_to_cstring;
 use crate::error::WebviewError;
 use crate::ffi;
 use crate::storage::StringStorage;
-use crate::{Webview, WebviewHandle};
+use crate::{Extension, ExternalInvokeFnBox, Webview, WebviewWrapper, WebviewHandle};
 use webview_sys as sys;
 
 pub struct Builder<'title, 'content, 'invoke, T> {
@@ -17,7 +17,7 @@ pub struct Builder<'title, 'content, 'invoke, T> {
     size: Option<(usize, usize)>,
     resizable: bool,
     debug: bool,
-    external_invoke: Option<Box<dyn FnMut(&mut Webview<'invoke, T>, &str) + 'invoke>>,
+    external_invoke: Option<ExternalInvokeFnBox<'invoke, T>>,
     userdata: T,
     thread_check: bool,
     buffer_size: usize,
@@ -105,7 +105,7 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
     #[inline]
     pub fn set_external_invoke(
         mut self,
-        func: impl FnMut(&mut Webview<'invoke, T>, &str) + 'invoke,
+        func: impl FnMut(&mut Webview, &mut T, &str) + 'invoke,
     ) -> Self {
         self.external_invoke = Some(Box::new(func));
         self
@@ -158,12 +158,16 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
             Webview {
                 webview,
                 storage,
-                external_invoke: self.external_invoke,
-                userdata: self.userdata,
             }
         };
 
-        let mut built = WebviewHandle::new(inner);
+        let mut built = WebviewHandle::new(WebviewWrapper {
+            inner,
+            ext: Extension {
+                external_invoke: self.external_invoke,
+                userdata: self.userdata
+            }
+        });
 
         unsafe {
             let inner = built.webview_mut();
