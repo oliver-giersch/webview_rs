@@ -28,7 +28,24 @@ mod storage;
 //TODO: Make builder more ergonomic
 //TODO: Make userdata more ergonomic
 
-/// Doc
+/// Create a simple webview with base configuration only.
+///
+/// This function is a thin wrapper around the equivalent function from the webview C library.
+/// It only allows the configuration of the webview's window title, the initial content, the
+/// window size and the resizability attribute.
+///
+/// The content accepts a string input which is interpreted based on its prefix.
+/// The webview library detects URLs by either a `http://` or `https://` prefix, filepaths by a
+/// `file:///` prefix and HTML by a `data:text/html,` prefix (followed by correct HTML markup in
+/// <html> tags).
+///
+/// This function is only part of this crate for the sake of completeness. It is recommended to use
+/// the `Builder` for creating webviews, which is equally ergonomic (if not more) while being more
+/// easy to use and has more options for configuration.
+///
+/// # Errors
+///
+/// # Examples
 pub fn webview<'title, 'content>(
     title: impl Into<Cow<'title, str>>,
     content: impl Into<Cow<'content, str>>,
@@ -41,16 +58,12 @@ pub fn webview<'title, 'content>(
     }
 }
 
+/// A wrapper for the actual Webview struct, that is ambivalent about its location in memory.
+///
 #[repr(C)]
 pub struct WebviewWrapper<'invoke, T> {
     inner: Webview,
     ext: Extension<'invoke, T>
-}
-
-#[repr(C)]
-pub struct Webview {
-    webview: sys::webview,
-    storage: StringStorage,
 }
 
 type ExternalInvokeFnBox<'invoke, T> = Box<FnMut(&mut Webview, &mut T, &str) + 'invoke>;
@@ -61,7 +74,16 @@ struct Extension<'invoke, T> {
     userdata: T,
 }
 
+#[repr(C)]
+pub struct Webview {
+    webview: sys::webview,
+    storage: StringStorage,
+}
+
 impl Webview {
+    /// Evaluate a string as JavaScript code and execute it.
+    ///
+    ///
     #[inline]
     pub fn eval(&mut self, js: &str) -> Result<(), WebviewError> {
         self.storage.eval_buffer.clear();
