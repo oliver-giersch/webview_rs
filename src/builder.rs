@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::mem;
-use std::path::Path;
+//use std::path::Path; TODO: add set_content for Path
 use std::thread;
 
 use crate::content::Content;

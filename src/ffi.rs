@@ -1,5 +1,9 @@
+//! TODO: ffi mod doc
+
 use std::borrow::Cow;
+use std::error;
 use std::ffi::CStr;
+use std::fmt;
 use std::mem;
 use std::os::raw::{c_char, c_int, c_void};
 
@@ -15,11 +19,13 @@ type InvokeFn = sys::c_extern_callback_fn;
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 #[repr(C)]
 pub enum Dialog {
-    Open = 0,
-    Save = 1,
+    Open  = 0,
+    Save  = 1,
     Alert = 2,
 }
 
+/// Each iteration in `webview_loop` returns either a `Continue` result, or an `Exit` result
+/// (for instance when `webview_terminate` has been called during the last iteration)
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 pub enum LoopResult {
     Continue,
@@ -41,6 +47,17 @@ pub enum LibraryError {
     Init(i32),
     Eval(i32),
 }
+
+impl fmt::Display for LibraryError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            LibraryError::Init(val) => write!(f, "failed to initialize webview (error code: {})", val),
+            LibraryError::Eval(val) => write!(f, "failed to evaluate js/css (error code: {})", val),
+        }
+    }
+}
+
+impl error::Error for LibraryError {}
 
 bitflags! {
     pub struct Flags: i32 {
@@ -111,35 +128,7 @@ pub unsafe fn struct_webview_set_external_invoke_cb<'invoke, T>(webview: &mut sy
     );
 }
 
-/// # Rust wrappers
-/// The following functions provide Rust wrappers using Rust types and idioms to call the appropriate
-/// (raw) extern C library functions.
-
-#[inline]
-pub unsafe fn webview_simple<'title, 'content>(
-    title: impl Into<Cow<'title, str>>,
-    content: impl Into<Cow<'content, str>>,
-    width: usize,
-    height: usize,
-    resizable: bool,
-) -> Result<(), WebviewError> {
-    let title_cstr = convert_to_cstring(title)?;
-    let content_cstr = convert_to_cstring(content)?;
-
-    let result = sys::webview(
-        title_cstr.as_ptr(),
-        content_cstr.as_ptr(),
-        width as c_int,
-        height as c_int,
-        resizable as c_int,
-    );
-
-    match result {
-        0 => Ok(()),
-        c => Err(WebviewError::from(LibraryError::Init(c))),
-    }
-}
-
+/// 
 #[must_use]
 #[inline]
 pub unsafe fn webview_init(webview: &mut sys::webview) -> Result<(), LibraryError> {

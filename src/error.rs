@@ -1,4 +1,4 @@
-use std::error;
+use std::error::Error;
 use std::ffi::{FromBytesWithNulError, NulError};
 use std::fmt;
 
@@ -16,22 +16,24 @@ pub enum WebviewError {
     InvalidThread,
 }
 
-//TODO: Write error messages
 impl fmt::Display for WebviewError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            Build => unimplemented!(),
-            DispatchFailed => unimplemented!(),
-            Library(ref err) => unimplemented!(),
-            InvalidPath => unimplemented!(),
-            InvalidStr(ref err) => unimplemented!(),
-            InvalidThread => unimplemented!(),
+            Build => write!(f, "failed to to build webview due to missing required arguments"),
+            DispatchFailed => write!(f, "failed to dispatch callback from thread (main thread handle no longer exists)"),
+            Library(ref err) => write!(f, "webview C library: {}", err.description()),
+            InvalidPath => unimplemented!(), //TODO: Write error message
+            InvalidStr(ref err) => write!(f, "string conversion error: {}", err.description()),
+            InvalidThread => write!(
+                f, "failed to start webview: Attempt to run on thread other than `main` \
+                (check can be disabled by calling `Builder::deactivate_thread_check`)"
+            ),
         }
     }
 }
 
-impl error::Error for WebviewError {}
+impl Error for WebviewError {}
 
 impl From<LibraryError> for WebviewError {
     #[inline]

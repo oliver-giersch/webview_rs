@@ -2,7 +2,7 @@ use std::ffi::CStr;
 use std::mem;
 use std::os::raw::{c_char, c_void};
 
-use crate::{Extension, Webview, WebviewWrapper};
+use crate::{Webview, WebviewWrapper};
 use webview_sys as sys;
 
 /// Extern function for C callback
@@ -14,19 +14,8 @@ pub extern "system" fn invoke_handler<'invoke, T>(webview: *mut sys::webview, ar
         let wrapper = webview as *mut WebviewWrapper<'invoke, T>;
         let (func, userdata) = {
             let wrapper = &mut *wrapper;
-            (
-                wrapper.ext.external_invoke.as_mut().expect("no internal invoke set"),
-                &mut wrapper.ext.userdata
-            )
+            (wrapper.ext.external_invoke.as_mut().expect("no internal invoke set"), &mut wrapper.ext.userdata)
         };
-
-        /*let func = {
-            let webview = &mut *webview;
-            webview
-                .external_invoke
-                .as_mut()
-                .expect("no external invoke set")
-        };*/
 
         let cow = CStr::from_ptr(arg).to_string_lossy();
         let arg = cow.as_ref();
@@ -47,7 +36,7 @@ pub extern "system" fn dispatch_handler<'invoke, T>(webview: *mut sys::webview, 
 
         //The `Send` bound variant is used here so the function can be used for
         // dispatches from the main thread as well as any other thread.
-        let mut func: &mut &mut (FnMut(&mut Webview, &mut T) + Send) = mem::transmute(args);
+        let func: &mut &mut (FnMut(&mut Webview, &mut T) + Send) = mem::transmute(args);
         func(webview, userdata);
     }
 }

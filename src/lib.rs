@@ -28,44 +28,21 @@ mod storage;
 //TODO: Make builder more ergonomic
 //TODO: Make userdata more ergonomic
 
-/// Create a simple webview with base configuration only.
-///
-/// This function is a thin wrapper around the equivalent function from the webview C library.
-/// It only allows the configuration of the webview's window title, the initial content, the
-/// window size and the resizability attribute.
-///
-/// The content accepts a string input which is interpreted based on its prefix.
-/// The webview library detects URLs by either a `http://` or `https://` prefix, filepaths by a
-/// `file:///` prefix and HTML by a `data:text/html,` prefix (followed by correct HTML markup in
-/// <html> tags).
-///
-/// This function is only part of this crate for the sake of completeness. It is recommended to use
-/// the `Builder` for creating webviews, which is equally ergonomic (if not more) while being more
-/// easy to use and has more options for configuration.
-///
-/// # Errors
-///
-/// # Examples
-pub fn webview<'title, 'content>(
-    title: impl Into<Cow<'title, str>>,
-    content: impl Into<Cow<'content, str>>,
-    width: usize,
-    height: usize,
-    resizable: bool,
-) -> Result<(), WebviewError> {
-    unsafe {
-        ffi::webview_simple(title, content, width, height, resizable)
-    }
-}
+//! TODO: Crate doc
+//! 
 
-/// A wrapper for the actual Webview struct, that is ambivalent about its location in memory.
-///
+/// Outer wrapper
+/// 
+/// A wrapper struct around the C library struct and the associated string buffers.
+/// The `ext` contains further (optional) Rust specific representations for userdata
+/// and the external invoke callback for calling Rust code from Javascript.
 #[repr(C)]
 pub struct WebviewWrapper<'invoke, T> {
     inner: Webview,
     ext: Extension<'invoke, T>
 }
 
+/// Type alias for a boxed internal invoke callback.
 type ExternalInvokeFnBox<'invoke, T> = Box<FnMut(&mut Webview, &mut T, &str) + 'invoke>;
 
 #[repr(C)]
