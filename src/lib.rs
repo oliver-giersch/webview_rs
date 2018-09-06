@@ -1,3 +1,6 @@
+//! TODO: Crate doc
+//! 
+
 #![feature(crate_in_paths)]
 
 #[macro_use]
@@ -27,9 +30,6 @@ mod storage;
 //TODOS
 //TODO: Make builder more ergonomic
 //TODO: Make userdata more ergonomic
-
-//! TODO: Crate doc
-//! 
 
 /// Outer wrapper
 /// 
