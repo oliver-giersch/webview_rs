@@ -8,19 +8,19 @@ use crate::conversion::convert_to_cstring;
 use crate::error::WebviewError;
 use crate::ffi;
 use crate::storage::StringStorage;
-use crate::{Extension, ExternalInvokeFnBox, Webview, WebviewWrapper, WebviewHandle};
+use crate::{Extension, ExternalInvokeFnBox, Webview, WebviewHandle, WebviewWrapper};
 use webview_sys as sys;
 
 pub struct Builder<'title, 'content, 'invoke, T> {
-    title: Option<Cow<'title, str>>,
-    content: Option<Cow<'content, str>>,
-    size: Option<(usize, usize)>,
-    resizable: bool,
-    debug: bool,
+    title:           Option<Cow<'title, str>>,
+    content:         Option<Cow<'content, str>>,
+    size:            Option<(usize, usize)>,
+    resizable:       bool,
+    debug:           bool,
     external_invoke: Option<ExternalInvokeFnBox<'invoke, T>>,
-    userdata: T,
-    thread_check: bool,
-    buffer_size: usize,
+    userdata:        T,
+    thread_check:    bool,
+    buffer_size:     usize,
 }
 
 impl<'title, 'content, 'invoke> Builder<'title, 'content, 'invoke, ()> {
@@ -28,15 +28,15 @@ impl<'title, 'content, 'invoke> Builder<'title, 'content, 'invoke, ()> {
     pub fn without_userdata() -> Self {
         sys::runtime_size_check();
         Builder {
-            title: None,
-            content: None,
-            size: None,
-            resizable: true,
-            debug: false,
+            title:           None,
+            content:         None,
+            size:            None,
+            resizable:       true,
+            debug:           false,
             external_invoke: None,
-            userdata: (),
-            thread_check: true,
-            buffer_size: 0,
+            userdata:        (),
+            thread_check:    true,
+            buffer_size:     0,
         }
     }
 }
@@ -77,7 +77,7 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
     #[inline]
     pub fn set_content<C>(mut self, content: impl Into<Content<'content, C>>) -> Self
     where
-        C: Into<Cow<'content, str>>
+        C: Into<Cow<'content, str>>,
     {
         self.content = Some(content.into().into());
         self
@@ -125,11 +125,8 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
 
     #[inline(never)]
     pub fn build(self) -> Result<WebviewHandle<'invoke, T>, WebviewError> {
-        if self.thread_check {
-            if let Some("main") = thread::current().name() {
-            } else {
-                return Err(WebviewError::InvalidThread);
-            }
+        if self.thread_check && !is_main_thread() {
+            return Err(WebviewError::InvalidThread);
         }
 
         let title = self.title.ok_or(WebviewError::Build)?;
@@ -155,18 +152,15 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
                 ffi::struct_webview_set_external_invoke_cb::<T>(&mut webview);
             }
 
-            Webview {
-                webview,
-                storage,
-            }
+            Webview { webview, storage }
         };
 
         let mut built = WebviewHandle::new(WebviewWrapper {
             inner,
             ext: Extension {
                 external_invoke: self.external_invoke,
-                userdata: self.userdata
-            }
+                userdata:        self.userdata,
+            },
         });
 
         unsafe {
@@ -176,4 +170,11 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
 
         Ok(built)
     }
+}
+
+#[inline]
+fn is_main_thread() -> bool {
+    thread::current()
+        .name()
+        .map_or(false, |name| name == "main")
 }

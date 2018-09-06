@@ -14,7 +14,14 @@ pub extern "system" fn invoke_handler<'invoke, T>(webview: *mut sys::webview, ar
         let wrapper = webview as *mut WebviewWrapper<'invoke, T>;
         let (func, userdata) = {
             let wrapper = &mut *wrapper;
-            (wrapper.ext.external_invoke.as_mut().expect("no internal invoke set"), &mut wrapper.ext.userdata)
+            (
+                wrapper
+                    .ext
+                    .external_invoke
+                    .as_mut()
+                    .expect("no internal invoke set"),
+                &mut wrapper.ext.userdata,
+            )
         };
 
         let cow = CStr::from_ptr(arg).to_string_lossy();

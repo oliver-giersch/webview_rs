@@ -37,10 +37,10 @@ fn main() {
                     1 => "'green'",
                     2 => "'blue'",
                     3 => "'yellow'",
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
 
-                let result = handle.try_dispatch(|webview| {
+                let result = handle.try_dispatch(|webview, _| {
                     webview.eval_fn("setColor", &[&id_string, color]);
                 });
 

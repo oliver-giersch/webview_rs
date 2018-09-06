@@ -1,5 +1,4 @@
 //! TODO: Crate doc
-//! 
 
 #![feature(crate_in_paths)]
 
@@ -15,9 +14,9 @@ pub use crate::builder::Builder;
 pub use crate::content::Content;
 pub use crate::ffi::{Dialog, Flags};
 
-use webview_sys as sys;
 use crate::error::WebviewError;
 use crate::storage::StringStorage;
+use webview_sys as sys;
 
 mod builder;
 mod callback;
@@ -32,23 +31,25 @@ mod storage;
 //TODO: Make userdata more ergonomic
 
 /// Outer wrapper
-/// 
-/// A wrapper struct around the C library struct and the associated string buffers.
-/// The `ext` contains further (optional) Rust specific representations for userdata
-/// and the external invoke callback for calling Rust code from Javascript.
+///
+/// A wrapper struct around the C library struct and the associated string
+/// buffers. The `ext` contains further (optional) Rust specific
+/// representations for userdata and the external invoke callback for calling
+/// Rust code from Javascript.
 #[repr(C)]
 pub struct WebviewWrapper<'invoke, T> {
     inner: Webview,
-    ext: Extension<'invoke, T>
+    ext:   Extension<'invoke, T>,
 }
 
 /// Type alias for a boxed internal invoke callback.
 type ExternalInvokeFnBox<'invoke, T> = Box<FnMut(&mut Webview, &mut T, &str) + 'invoke>;
+type Result = std::result::Result<(), WebviewError>;
 
 #[repr(C)]
 struct Extension<'invoke, T> {
     external_invoke: Option<ExternalInvokeFnBox<'invoke, T>>,
-    userdata: T,
+    userdata:        T,
 }
 
 #[repr(C)]
@@ -59,10 +60,8 @@ pub struct Webview {
 
 impl Webview {
     /// Evaluate a string as JavaScript code and execute it.
-    ///
-    ///
     #[inline]
-    pub fn eval(&mut self, js: &str) -> Result<(), WebviewError> {
+    pub fn eval(&mut self, js: &str) -> Result {
         self.storage.eval_buffer.clear();
         self.storage.eval_buffer.push_str(js);
 
@@ -71,7 +70,7 @@ impl Webview {
     }
 
     #[inline]
-    pub fn eval_fn(&mut self, function: &str, args: &[&str]) -> Result<(), WebviewError> {
+    pub fn eval_fn(&mut self, function: &str, args: &[&str]) -> Result {
         self.storage.eval_buffer.clear();
         self.storage.eval_buffer.push_str(function);
         self.storage.eval_buffer.push('(');
@@ -90,19 +89,18 @@ impl Webview {
     }
 
     #[inline]
-    pub fn inject_css(&mut self, css: &str) -> Result<(), WebviewError> {
+    pub fn inject_css(&mut self, css: &str) -> Result {
         self.storage.eval_buffer.clear();
         self.storage.eval_buffer.push_str(css);
 
-        unsafe { ffi::webview_inject_css(&mut self.webview, self.storage.nul_terminated_buffer())? };
+        unsafe {
+            ffi::webview_inject_css(&mut self.webview, self.storage.nul_terminated_buffer())?
+        };
         Ok(())
     }
 
     #[inline]
-    pub fn set_title<'title>(
-        &mut self,
-        title: impl Into<Cow<'title, str>>,
-    ) -> Result<(), WebviewError> {
+    pub fn set_title<'title>(&mut self, title: impl Into<Cow<'title, str>>) -> Result {
         unsafe { ffi::webview_set_title(&mut self.webview, title) }
     }
 
@@ -127,7 +125,7 @@ impl Webview {
         title: impl Into<Cow<'title, str>>,
         arg: impl Into<Cow<'arg, str>>,
         result_buffer: &mut [u8],
-    ) -> Result<(), WebviewError> {
+    ) -> Result {
         unsafe { ffi::webview_dialog(&mut self.webview, dialog, flags, title, arg, result_buffer) }
     }
 
@@ -152,7 +150,7 @@ impl Drop for Webview {
 /// unsafe impl<T> !Send for WebviewHandle<T> {}
 /// unsafe impl<T> !Sync for WebviewHandle<T> {}
 
-pub struct WebviewHandle<'invoke, T = ()> {
+pub struct WebviewHandle<'invoke, T> {
     inner: Arc<UnsafeCell<WebviewWrapper<'invoke, T>>>,
 }
 
@@ -167,29 +165,31 @@ impl<'invoke, T> WebviewHandle<'invoke, T> {
     #[inline]
     pub fn run(&mut self, blocking: bool) {
         use ffi::LoopResult::Continue;
-        while let Continue = unsafe { ffi::webview_loop(&mut self.webview_mut().webview, blocking) } {}
+        loop {
+            let result = unsafe { ffi::webview_loop(&mut self.webview_mut().webview, blocking) };
+            if let Continue = result {
+                break;
+            }
+        }
     }
 
     #[inline]
-    pub fn eval(&mut self, js: &str) -> Result<(), WebviewError> {
+    pub fn eval(&mut self, js: &str) -> Result {
         self.webview_mut().eval(js)
     }
 
     #[inline]
-    pub fn eval_fn(&mut self, function: &str, args: &[&str]) -> Result<(), WebviewError> {
+    pub fn eval_fn(&mut self, function: &str, args: &[&str]) -> Result {
         self.webview_mut().eval_fn(function, args)
     }
 
     #[inline]
-    pub fn inject_css(&mut self, css: &str) -> Result<(), WebviewError> {
+    pub fn inject_css(&mut self, css: &str) -> Result {
         self.webview_mut().inject_css(css)
     }
 
     #[inline]
-    pub fn set_title<'title>(
-        &mut self,
-        title: impl Into<Cow<'title, str>>,
-    ) -> Result<(), WebviewError> {
+    pub fn set_title<'title>(&mut self, title: impl Into<Cow<'title, str>>) -> Result {
         self.webview_mut().set_title(title)
     }
 
@@ -211,8 +211,9 @@ impl<'invoke, T> WebviewHandle<'invoke, T> {
         title: impl Into<Cow<'title, str>>,
         arg: impl Into<Cow<'arg, str>>,
         result_buffer: &mut [u8],
-    ) -> Result<(), WebviewError> {
-        self.webview_mut().dialog(dialog, flags, title, arg, result_buffer)
+    ) -> Result {
+        self.webview_mut()
+            .dialog(dialog, flags, title, arg, result_buffer)
     }
 
     #[inline]
@@ -266,24 +267,34 @@ impl<'invoke, T> WebviewHandle<'invoke, T> {
 unsafe impl<'invoke, T> Send for ThreadHandle<'invoke, T> where T: Send {}
 unsafe impl<'invoke, T> Sync for ThreadHandle<'invoke, T> where T: Sync {}
 
+/// A handle that is safe to share between threads
+///
+/// The thread handle contains a weak reference to the webview contained within
+/// the main handle, so it can only be used to dispatch function calls while
+/// the main handle exists.
 #[derive(Clone)]
 pub struct ThreadHandle<'invoke, T> {
     inner: Weak<UnsafeCell<WebviewWrapper<'invoke, T>>>,
 }
 
 impl<'invoke, T> ThreadHandle<'invoke, T> {
+    /// Attempt to dispatch a function call
+    ///
+    /// The specified function is queued for execution on the main thread in a
+    /// thread safe manner and asynchronously executed.
+    ///
+    /// # Errors
+    ///
+    /// Since the `ThreadHandle` only has a weak reference to the webview, a
+    /// `WebviewError::DispatchFailed` is returned, if the dispatch is attempted
+    /// when the main handle no longer exists.
     #[inline]
-    pub fn try_dispatch(
-        &self,
-        func: impl FnMut(&mut Webview, &mut T) + Send,
-    ) -> Result<(), WebviewError> {
-        match self.inner.upgrade() {
-            Some(ref cell) => {
+    pub fn try_dispatch(&self, func: impl FnMut(&mut Webview, &mut T) + Send) -> Result {
+        self.inner
+            .upgrade()
+            .map(|cell| {
                 let webview = unsafe { &mut (*cell.get()).inner };
                 webview.dispatch(func);
-                Ok(())
-            }
-            None => Err(WebviewError::DispatchFailed),
-        }
+            }).ok_or(WebviewError::DispatchFailed)
     }
 }
