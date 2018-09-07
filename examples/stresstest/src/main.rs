@@ -4,10 +4,9 @@ extern crate webview_rs;
 use std::thread;
 use std::time;
 
-use webview_rs::{Builder, Content};
+use webview_rs::{Arg, Builder, Content};
 
 const THREADS: usize = 16;
-const BLACK: [u8; 4] = [0, 0, 0, 0];
 
 const HTML: &'static str = include_str!("../assets/index.html");
 const CSS: &'static str = include_str!("../assets/styles.css");
@@ -25,28 +24,26 @@ fn main() {
 
     for id in 0..THREADS {
         let handle = webview.thread_handle();
-        thread::spawn(move || {
-            let id_string = id.to_string();
+        thread::spawn(move || loop {
+            thread::sleep(time::Duration::from_millis(50));
 
-            loop {
-                thread::sleep(time::Duration::from_millis(50));
+            let random: u8 = rand::random();
+            let color = match random % 4 {
+                0 => "red",
+                1 => "green",
+                2 => "blue",
+                3 => "yellow",
+                _ => unreachable!(),
+            };
 
-                let random: u8 = rand::random();
-                let color = match random % 4 {
-                    0 => "'red'",
-                    1 => "'green'",
-                    2 => "'blue'",
-                    3 => "'yellow'",
-                    _ => unreachable!(),
-                };
+            let result = handle.try_dispatch(|webview, _| {
+                webview
+                    .eval_fn("setColor", &[Arg::Int(id), Arg::Str(color)])
+                    .unwrap();
+            });
 
-                let result = handle.try_dispatch(|webview, _| {
-                    webview.eval_fn("setColor", &[&id_string, color]);
-                });
-
-                if result.is_err() {
-                    break;
-                }
+            if result.is_err() {
+                break;
             }
         });
     }

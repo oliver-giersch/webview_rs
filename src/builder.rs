@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::mem;
-//use std::path::Path; TODO: add set_content for Path
+use std::path::Path; //TODO: add set_content for Path
 use std::thread;
 
 use crate::content::Content;
@@ -72,6 +72,19 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
     #[inline]
     pub fn set_content_html(self, html: impl Into<Cow<'content, str>>) -> Self {
         self.set_content(Content::Html(html))
+    }
+
+    #[inline]
+    pub fn set_content_file<'path>(self, filepath: impl Into<Cow<'path, Path>>) -> Self {
+        let filepath = filepath.into().into_owned();
+        let string = filepath.to_string_lossy().into_owned();
+
+        self.set_content(Content::File(string))
+        //Cow<'path, Path>
+        //into owned (PathBuf)
+        //to_string_lossy (Cow)
+        //to owned
+        //unimplemented!()
     }
 
     #[inline]
