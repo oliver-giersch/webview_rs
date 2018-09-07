@@ -168,10 +168,10 @@ impl<'invoke, T> WebviewHandle<'invoke, T> {
 
     #[inline]
     pub fn run(&mut self, blocking: bool) {
-        use ffi::LoopResult::Continue;
+        use ffi::LoopResult::Exit;
         loop {
             let result = unsafe { ffi::webview_loop(&mut self.webview_mut().webview, blocking) };
-            if let Continue = result {
+            if let Exit = result {
                 break;
             }
         }
