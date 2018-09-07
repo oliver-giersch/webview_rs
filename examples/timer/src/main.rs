@@ -1,10 +1,10 @@
 extern crate webview_rs;
 
 use std::sync::{Arc, Mutex};
-use std::time;
 use std::thread;
+use std::time;
 
-use webview_rs::{Webview, WebviewHandle, Builder, Content};
+use webview_rs::{Arg, Builder, Content, Webview};
 
 static HTML_DATA: &'static str = include_str!("../index.html");
 
@@ -28,26 +28,22 @@ impl Timer {
         let mut lock = self.ticks.lock().unwrap();
         *lock += 1;
     }
-
-    fn render(&self, webview: &mut Webview, userdata: &mut Arc<Timer>) {
-        let ticks = self.get();
-        webview.eval_fn("updateTicks", &["ticks"]).unwrap();
-    }
 }
 
 type Userdata = Arc<Timer>;
 
+//Could use a closure instead
 fn external_invoke(webview: &mut Webview, userdata: &mut Userdata, arg: &str) {
     match arg {
         "reset" => reset_invoke(webview, userdata),
         "exit" => exit_invoke(webview),
-        _ => {},
+        _ => {}
     }
 }
 
 fn reset_invoke(webview: &mut Webview, userdata: &mut Userdata) {
     userdata.set(0);
-    webview.eval_fn("updateTicks", &["0"]).unwrap();
+    webview.eval_fn("updateTicks", &[Arg::Int(0)]).unwrap();
 }
 
 fn exit_invoke(webview: &mut Webview) {
@@ -60,24 +56,23 @@ fn main() {
         .set_title("Timer")
         .set_content(Content::Html(HTML_DATA))
         .set_size(400, 400)
-        .set_external_invoke(external_invoke) //|webview: &mut Webview<Arc<Timer>>, arg: &str| {...}
+        .set_external_invoke(external_invoke)
+        //.set_external_invoke(|webview, userdata, arg| { ... })
         .build()
-        .expect("...");
+        .expect("could not create webview");
 
     let thread_handle = webview.thread_handle();
 
-    thread::spawn(move || {
-        loop {
-            thread::sleep(time::Duration::from_millis(100));
-            timer.incr();
-            let result = thread_handle.try_dispatch(|webview, userdata| {
-                let ticks = userdata.get();
-                webview.eval_fn("updateTicks", &[&ticks.to_string()]).unwrap();
-            });
+    thread::spawn(move || loop {
+        thread::sleep(time::Duration::from_millis(100));
+        timer.incr();
+        let result = thread_handle.try_dispatch(|webview, userdata| {
+            let ticks = userdata.get();
+            webview.eval_fn("updateTicks", &[Arg::Int(ticks)]).unwrap();
+        });
 
-            if result.is_err() {
-                break;
-            }
+        if result.is_err() {
+            break;
         }
     });
 

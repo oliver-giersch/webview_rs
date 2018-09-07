@@ -6,8 +6,8 @@ use std::thread;
 use crate::content::Content;
 use crate::conversion::convert_to_cstring;
 use crate::error::WebviewError;
+use crate::eval::StringBuffers;
 use crate::ffi;
-use crate::storage::StringStorage;
 use crate::{Extension, ExternalInvokeFnBox, Webview, WebviewHandle, WebviewWrapper};
 use webview_sys as sys;
 
@@ -134,15 +134,15 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
         let (width, height) = self.size.unwrap_or((800, 600));
 
         let inner = unsafe {
-            let storage = StringStorage::new(
+            let buffers = StringBuffers::new(
                 convert_to_cstring(title)?,
                 convert_to_cstring(content)?,
                 self.buffer_size,
             );
 
             let mut webview: sys::webview = mem::zeroed();
-            ffi::struct_webview_set_title(&mut webview, &storage.title);
-            ffi::struct_webview_set_content(&mut webview, &storage.content);
+            ffi::struct_webview_set_title(&mut webview, &buffers.title);
+            ffi::struct_webview_set_content(&mut webview, &buffers.content);
             ffi::struct_webview_set_width(&mut webview, width);
             ffi::struct_webview_set_height(&mut webview, height);
             ffi::struct_webview_set_resizable(&mut webview, self.resizable);
@@ -152,7 +152,7 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
                 ffi::struct_webview_set_external_invoke_cb::<T>(&mut webview);
             }
 
-            Webview { webview, storage }
+            Webview { webview, buffers }
         };
 
         let mut built = WebviewHandle::new(WebviewWrapper {
