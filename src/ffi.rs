@@ -7,25 +7,29 @@ use std::fmt;
 use std::mem;
 use std::os::raw::{c_char, c_int, c_void};
 
-use webview_sys as sys;
 use crate::callback;
 use crate::conversion::convert_to_cstring;
 use crate::error::WebviewError;
 use crate::Webview;
+use webview_sys as sys;
 
 type DispatchFn = sys::c_webview_dispatch_fn;
 type InvokeFn = sys::c_extern_callback_fn;
 
+/// Dialog options
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 #[repr(C)]
 pub enum Dialog {
-    Open  = 0,
-    Save  = 1,
+    Open = 0,
+    Save = 1,
     Alert = 2,
 }
 
-/// Each iteration in `webview_loop` returns either a `Continue` result, or an `Exit` result
-/// (for instance when `webview_terminate` has been called during the last iteration)
+/// Loop result
+///
+/// Each iteration in `webview_loop` returns either a `Continue` result, or an
+/// `Exit` result (for instance when `webview_terminate` has been called during
+/// the last iteration)
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 pub enum LoopResult {
     Continue,
@@ -42,6 +46,7 @@ impl From<i32> for LoopResult {
     }
 }
 
+/// webview C library errors
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 pub enum LibraryError {
     Init(i32),
@@ -49,9 +54,12 @@ pub enum LibraryError {
 }
 
 impl fmt::Display for LibraryError {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            LibraryError::Init(val) => write!(f, "failed to initialize webview (error code: {})", val),
+            LibraryError::Init(val) => {
+                write!(f, "failed to initialize webview (error code: {})", val)
+            }
             LibraryError::Eval(val) => write!(f, "failed to evaluate js/css (error code: {})", val),
         }
     }
@@ -70,16 +78,20 @@ bitflags! {
     }
 }
 
-/// # Struct field setters
-///
-/// The following functions wrap external C function calls, which set the individual fields of the
-/// webview struct pre initialization.
-/// These setters are outsourced to C code in order to prevent any breaking changes caused by
-/// reordering of fields within the library.
-///
-/// The runtime sanity checks can detect differences in size and alignment of the C library structs
-/// and the Rust re-implementations, but not differences in field ordering/arrangement.
+/**
+ ** The following functions are used to set the individual fields of the
+ ** webview struct.
+ **
+ ** These functions are bound to external C functions, so any changes to
+ ** the order of fields in the library don't necessarily constitute
+ ** breaking changes.
+ **/
 
+/// Set title of the webview struct
+///
+/// #Notes
+///
+/// The webview struct does not take ownership of the supplied title string
 #[inline]
 pub unsafe fn struct_webview_set_title<'s>(
     webview: &mut sys::webview,
@@ -90,6 +102,11 @@ pub unsafe fn struct_webview_set_title<'s>(
     sys::struct_webview_set_title(webview as *mut _, ptr);
 }
 
+/// Set content of the webview struct
+///
+/// #Notes
+///
+/// The webview struct does not take ownership of the supplied content string
 #[inline]
 pub unsafe fn struct_webview_set_content<'s>(
     webview: &mut sys::webview,
@@ -100,26 +117,33 @@ pub unsafe fn struct_webview_set_content<'s>(
     sys::struct_webview_set_url(webview as *mut _, ptr);
 }
 
+/// Set the width of the webview struct
 #[inline]
 pub unsafe fn struct_webview_set_width(webview: &mut sys::webview, width: usize) {
     sys::struct_webview_set_width(webview as *mut _, width as c_int);
 }
 
+/// Set the height of the webview struct
 #[inline]
 pub unsafe fn struct_webview_set_height(webview: &mut sys::webview, height: usize) {
     sys::struct_webview_set_height(webview as *mut _, height as c_int);
 }
 
+/// Set the resizability attribute of the webview struct
 #[inline]
 pub unsafe fn struct_webview_set_resizable(webview: &mut sys::webview, resizable: bool) {
     sys::struct_webview_set_resizable(webview as *mut _, resizable as c_int);
 }
 
+/// Set the debug attribute of the webview struct
 #[inline]
 pub unsafe fn struct_webview_set_debug(webview: &mut sys::webview, debug: bool) {
     sys::struct_webview_set_debug(webview as *mut _, debug as c_int);
 }
 
+/// Set the function pointer for the external invoke callback
+///
+/// This is set to the `callback::invoke_handler` function.
 #[inline]
 pub unsafe fn struct_webview_set_external_invoke_cb<'invoke, T>(webview: &mut sys::webview) {
     sys::struct_webview_set_external_invoke_cb(
@@ -128,7 +152,7 @@ pub unsafe fn struct_webview_set_external_invoke_cb<'invoke, T>(webview: &mut sy
     );
 }
 
-/// 
+/// Initializes the webview data structure
 #[must_use]
 #[inline]
 pub unsafe fn webview_init(webview: &mut sys::webview) -> Result<(), LibraryError> {
@@ -140,7 +164,8 @@ pub unsafe fn webview_init(webview: &mut sys::webview) -> Result<(), LibraryErro
 }
 
 /// Executes the main loop for one iteration.
-/// The result indicates whether another iterations should be run or the
+///
+/// The result indicates whether another iteration should be run or the
 /// webview has been terminated.
 #[must_use]
 #[inline]
@@ -179,7 +204,7 @@ pub unsafe fn webview_inject_css(
 #[inline]
 pub unsafe fn webview_set_title<'title>(
     webview: &mut sys::webview,
-    title: impl Into<Cow<'title, str>>
+    title: impl Into<Cow<'title, str>>,
 ) -> Result<(), WebviewError> {
     let title_cstr = convert_to_cstring(title)?;
     sys::webview_set_title(webview as *mut _, title_cstr.as_ptr());
