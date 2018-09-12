@@ -1,6 +1,10 @@
 use std::borrow::Cow;
 use std::marker::PhantomData;
 
+/// Content Variants
+///
+/// The initial content for a webview can be either a URL, a filepath or HTML
+/// markup.
 pub enum Content<'content, C>
 where
     C: Into<Cow<'content, str>>,
@@ -8,6 +12,7 @@ where
     Url(C),
     File(C),
     Html(C),
+    #[doc(hidden)]
     __Hidden(PhantomData<&'content str>),
 }
 
@@ -15,6 +20,7 @@ impl<'content, C> Into<Cow<'content, str>> for Content<'content, C>
 where
     C: Into<Cow<'content, str>>,
 {
+    /// Conversion from Content into a string (using the copy-on-write type)
     #[inline]
     fn into(self) -> Cow<'content, str> {
         match self {
@@ -26,6 +32,7 @@ where
     }
 }
 
+/// Convert Content string into correctly formatted URL.
 fn into_url<'s>(content: impl Into<Cow<'s, str>>) -> Cow<'s, str> {
     let content = content.into();
     match content {

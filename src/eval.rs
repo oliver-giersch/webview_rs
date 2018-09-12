@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 use std::fmt::Write;
 
+/// Possible JS argument types (simplified)
 pub enum Arg<'s> {
     Int(usize),
     Float(f64),

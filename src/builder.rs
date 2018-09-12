@@ -80,11 +80,6 @@ impl<'title, 'content, 'invoke, T> Builder<'title, 'content, 'invoke, T> {
         let string = filepath.to_string_lossy().into_owned();
 
         self.set_content(Content::File(string))
-        //Cow<'path, Path>
-        //into owned (PathBuf)
-        //to_string_lossy (Cow)
-        //to owned
-        //unimplemented!()
     }
 
     #[inline]
