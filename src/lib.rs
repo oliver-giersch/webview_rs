@@ -1,4 +1,20 @@
-//! TODO: Crate doc
+//! Webview RS
+//!
+//! This crate is a library which wraps around the cross-platform GUI C library webview.
+//! The library uses ... under Linux, ... under Windows and ... under MacOS, which are
+//! required dependencies for compiling the crate.
+//!
+//! The webview library has the following features:
+//!     - build a HTML frontend with CSS and Javascript and a native backend
+//!     - evaluate JS or inject CSS at runtime
+//!     - invoke native (e.g. Rust) code from Javascript
+//!     - display arbitrary websites
+//!     - dispatch Javascript code for runtime evaluation safely from
+//!       multiple threads
+//!
+//! The invocation and evaluation functionality is somewhat limited (to simple function calls
+//! with comparatively simple arguments).
+
 
 #![feature(crate_in_paths)]
 
@@ -25,10 +41,6 @@ mod conversion;
 mod error;
 mod eval;
 mod ffi;
-
-//TODOS
-//TODO: Make builder more ergonomic
-//TODO: Make userdata more ergonomic
 
 /// Type alias for a boxed internal invoke callback.
 type ExternalInvokeFnBox<'invoke, T> = Box<FnMut(&mut Webview, &mut T, &str) + 'invoke>;
@@ -61,7 +73,14 @@ struct Extension<'invoke, T> {
 }
 
 impl Webview {
-    /// Evaluate a string as JavaScript code and execute it.
+    /// Evaluate a string as Javascript code and execute it.
+    ///
+    /// #Errors
+    ///
+    /// Attempting to evaluate invalid JS code does *not* necessarily lead
+    /// to an error!
+    /// Set the debug attribute in the `Builder` and watch for platform
+    /// specific error messages in the console.
     #[inline]
     pub fn eval(&mut self, js: &str) -> Result {
         self.buffers.buffer.clear();
@@ -73,6 +92,7 @@ impl Webview {
         Ok(())
     }
 
+    /// Evaluate a single Javascript function with simple arguments
     #[inline]
     pub fn eval_fn<'s>(&mut self, function: &str, args: &[Arg<'s>]) -> Result {
         self.buffers.buffer.clear();
@@ -92,6 +112,9 @@ impl Webview {
         Ok(())
     }
 
+    /// Inject CSS in string format at runtime
+    ///
+    ///
     #[inline]
     pub fn inject_css(&mut self, css: &str) -> Result {
         self.buffers.buffer.clear();
@@ -103,16 +126,19 @@ impl Webview {
         Ok(())
     }
 
+    /// Set the webview window title
     #[inline]
     pub fn set_title<'title>(&mut self, title: impl Into<Cow<'title, str>>) -> Result {
         unsafe { ffi::webview_set_title(&mut self.webview, title) }
     }
 
+    /// Set the webview window to fullscreen/windowed
     #[inline]
     pub fn set_fullscreen(&mut self, fullscreen: bool) {
         unsafe { ffi::webview_set_fullscreen(&mut self.webview, fullscreen) };
     }
 
+    /// Set the webview window color (paints over any content)
     #[inline]
     pub fn set_color(&mut self, color: impl Into<[u8; 4]>) {
         let color = color.into();
@@ -166,6 +192,10 @@ impl<'invoke, T> WebviewHandle<'invoke, T> {
         }
     }
 
+    /// Start the webview event loop
+    ///
+    /// The loop iterates until either the webview window is closed or a
+    /// call to `terminate` is made.
     #[inline]
     pub fn run(&mut self, blocking: bool) {
         use ffi::LoopResult::Exit;
